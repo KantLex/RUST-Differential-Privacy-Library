@@ -45,6 +45,10 @@ pub fn laplace_mechanism(
     epsilon: f64,
     accountant: &mut PrivacyAccountant,
 ) -> f64 {
+    // Validate input parameters
+    assert!(epsilon > 0.0, "Epsilon must be positive.");
+    assert!(sensitivity >= 0.0, "Sensitivity must be non-negative.");
+
     // Calculate the scale parameter for the Laplace distribution
     let scale = sensitivity / epsilon;
 
