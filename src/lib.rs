@@ -1,14 +1,11 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+// src/lib.rs
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+//! Differential Privacy Library
+//!
+//! This library provides various mechanisms and tools to implement differential privacy.
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/// Privacy Accounting Module
+pub mod privacy_accounting;
+
+/// Differential Privacy Mechanisms
+pub mod mechanisms;
