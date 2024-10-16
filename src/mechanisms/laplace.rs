@@ -87,15 +87,16 @@ mod tests {
 
         // Check that noisy_value is not equal to the original value
         // (with high probability, since noise is random)
-        // However, due to randomness, this test might occasionally fail
-        // To make it robust, we can check if noise is within expected bounds
+        assert!(noisy_value != value, "Noisy value should differ from original value.");
+
+        // Check that noise is within expected range with high probability
         let noise = noisy_value - value;
-        let expected_scale = sensitivity / epsilon;
-        // The Laplace distribution has a probability density function that decays exponentially
-        // So, most noise values should lie within a few scales
+        let scale = sensitivity / epsilon;
+        // The probability that |noise| > k * scale decreases exponentially
+        // For testing, we can check if |noise| <= 10 * scale
         assert!(
-            noise.abs() <= 10.0 * expected_scale,
-            "Noise is too large, which is unlikely."
+            noise.abs() <= 10.0 * scale,
+            "Noise magnitude is too large, which is unlikely."
         );
     }
 
@@ -108,6 +109,34 @@ mod tests {
         let _ = laplace_mechanism(value, sensitivity, epsilon, &mut accountant);
         let (total_epsilon, total_delta) = accountant.get_privacy_loss();
         assert_eq!(total_epsilon, epsilon);
-        assert_eq!(total_delta, 0.0);
+        assert_eq!(total_delta, 0.0, "Delta should remain zero for Laplace Mechanism.");
+    }
+
+    #[test]
+    fn test_sample_laplace_distribution_properties() {
+        // Generate a large number of samples and check statistical properties
+        let scale = 1.0;
+        let num_samples = 100_000;
+        let mut sum = 0.0;
+        let mut sum_sq = 0.0;
+
+        for _ in 0..num_samples {
+            let sample = sample_laplace(scale);
+            sum += sample;
+            sum_sq += sample.powi(2);
+        }
+
+        let mean = sum / num_samples as f64;
+        let variance = (sum_sq / num_samples as f64) - mean.powi(2);
+
+        // For Laplace distribution, mean should be ~0 and variance should be ~2 * scale^2
+        assert!(
+            mean.abs() < 0.1,
+            "Mean of Laplace samples deviates significantly from 0."
+        );
+        assert!(
+            (variance - 2.0 * scale.powi(2)).abs() < 0.1,
+            "Variance of Laplace samples deviates significantly from expected value."
+        );
     }
 }
