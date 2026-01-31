@@ -7,7 +7,9 @@ A robust, performant, and comprehensive toolkit for implementing differential pr
 - [Overview](#overview)
 - [Features](#features)
 - [Installation](#installation)
-- [Quick Start](#quick-start)
+- [Quick Start (Beginners)](#quick-start-beginners)
+- [Simplified API](#simplified-api)
+- [Full API Quick Start](#full-api-quick-start)
 - [Core Mechanisms](#core-mechanisms)
   - [Laplace Mechanism](#laplace-mechanism)
   - [Gaussian Mechanism](#gaussian-mechanism)
@@ -85,7 +87,93 @@ differential_privacy = "0.1.0"
 ndarray = "0.15"  # Required for aggregation functions
 ```
 
-## Quick Start
+## Quick Start (Beginners)
+
+**New to differential privacy?** Start here with our simplified API:
+
+```rust
+use differential_privacy::prelude::*;
+
+fn main() {
+    // Add noise to a count - that's it!
+    let true_count = 42.0;
+    let private_count = add_noise(true_count, PrivacyLevel::Medium);
+    println!("Private count: {}", private_count.round());
+
+    // Compute private statistics on data
+    let salaries = vec![50000.0, 60000.0, 55000.0, 70000.0, 65000.0];
+
+    // Private mean - values clipped to [0, 100000]
+    let private_avg = private_mean_simple(&salaries, 0.0, 100000.0, PrivacyLevel::Medium);
+    println!("Private average salary: ${:.0}", private_avg);
+
+    // Private sum
+    let private_total = private_sum_simple(&salaries, 0.0, 100000.0, PrivacyLevel::Medium);
+    println!("Private total: ${:.0}", private_total);
+}
+```
+
+### Privacy Levels
+
+Choose your privacy level based on data sensitivity:
+
+| Level | Epsilon | Use Case |
+|-------|---------|----------|
+| `PrivacyLevel::Low` | 1.0 | Non-sensitive data, high accuracy needed |
+| `PrivacyLevel::Medium` | 0.5 | Balanced (recommended default) |
+| `PrivacyLevel::High` | 0.1 | Sensitive data |
+| `PrivacyLevel::VeryHigh` | 0.01 | Highly sensitive data |
+| `PrivacyLevel::Custom(ε)` | Any | Custom epsilon value |
+
+### Estimate Noise Before Running
+
+```rust
+use differential_privacy::prelude::*;
+
+// Check how much noise will be added
+let scale = estimate_noise(1.0, PrivacyLevel::Medium);  // sensitivity = 1.0
+println!("Noise scale: ±{:.1}", scale);
+println!("95% of results within ±{:.1} of true value", 3.0 * scale);
+
+// Get a suggested privacy level based on dataset size
+let level = suggest_privacy_level(10000);  // 10,000 records
+println!("Suggested: {:?}", level);  // PrivacyLevel::High
+```
+
+## Simplified API
+
+The simplified API provides easy-to-use functions that don't require understanding all differential privacy concepts:
+
+### Simple Functions
+
+| Function | Description |
+|----------|-------------|
+| `add_noise(value, level)` | Add noise to any value (sensitivity=1) |
+| `add_noise_with_sensitivity(value, sens, level)` | Add noise with custom sensitivity |
+| `private_count_simple(count, level)` | Private count |
+| `private_sum_simple(values, lower, upper, level)` | Private sum with clipping |
+| `private_mean_simple(values, lower, upper, level)` | Private mean with clipping |
+| `private_select(candidates, scores, level)` | Private selection from options |
+| `private_argmax(counts, level)` | Private index of maximum |
+
+### Builder Pattern
+
+For more control, use the builder pattern:
+
+```rust
+use differential_privacy::simple::PrivateQuery;
+
+let result = PrivateQuery::new(100.0)
+    .sensitivity(10.0)      // Query sensitivity
+    .epsilon(0.3)           // Or use .privacy(PrivacyLevel::High)
+    .release();             // Add noise and return
+
+println!("Private result: {}", result);
+```
+
+## Full API Quick Start
+
+For advanced users who need privacy accounting and composition:
 
 ```rust
 use differential_privacy::mechanisms::laplace_mechanism;
