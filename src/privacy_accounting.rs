@@ -1,5 +1,85 @@
 // src/privacy_accounting.rs
 
+use std::fmt;
+
+/// Error type for privacy budget violations.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrivacyBudgetError {
+    /// The requested epsilon would exceed the budget.
+    EpsilonBudgetExceeded {
+        requested: f64,
+        available: f64,
+        total_after: f64,
+        budget: f64,
+    },
+    /// The requested delta would exceed the budget.
+    DeltaBudgetExceeded {
+        requested: f64,
+        available: f64,
+        total_after: f64,
+        budget: f64,
+    },
+    /// Both epsilon and delta would exceed their budgets.
+    BothBudgetsExceeded {
+        epsilon_requested: f64,
+        epsilon_available: f64,
+        delta_requested: f64,
+        delta_available: f64,
+    },
+    /// No budget has been set, but budget enforcement was requested.
+    NoBudgetSet,
+    /// Invalid parameters provided.
+    InvalidParameters(String),
+}
+
+impl fmt::Display for PrivacyBudgetError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrivacyBudgetError::EpsilonBudgetExceeded {
+                requested,
+                available,
+                total_after,
+                budget,
+            } => write!(
+                f,
+                "Epsilon budget exceeded: requested ε={:.4} would result in total ε={:.4}, \
+                 but budget is ε={:.4} (available: {:.4})",
+                requested, total_after, budget, available
+            ),
+            PrivacyBudgetError::DeltaBudgetExceeded {
+                requested,
+                available,
+                total_after,
+                budget,
+            } => write!(
+                f,
+                "Delta budget exceeded: requested δ={:.2e} would result in total δ={:.2e}, \
+                 but budget is δ={:.2e} (available: {:.2e})",
+                requested, total_after, budget, available
+            ),
+            PrivacyBudgetError::BothBudgetsExceeded {
+                epsilon_requested,
+                epsilon_available,
+                delta_requested,
+                delta_available,
+            } => write!(
+                f,
+                "Both budgets exceeded: requested ε={:.4} (available: {:.4}), \
+                 δ={:.2e} (available: {:.2e})",
+                epsilon_requested, epsilon_available, delta_requested, delta_available
+            ),
+            PrivacyBudgetError::NoBudgetSet => {
+                write!(f, "No privacy budget has been set for this accountant")
+            }
+            PrivacyBudgetError::InvalidParameters(msg) => {
+                write!(f, "Invalid parameters: {}", msg)
+            }
+        }
+    }
+}
+
+impl std::error::Error for PrivacyBudgetError {}
+
 /// Composition method for computing total privacy loss.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompositionMethod {
@@ -99,8 +179,190 @@ impl PrivacyAccountant {
     ///
     /// * `epsilon` - The ε consumed by the mechanism.
     /// * `delta` - The δ consumed by the mechanism.
+    ///
+    /// # Note
+    ///
+    /// This method does not check budget limits. Use `try_update` for budget enforcement.
     pub fn update(&mut self, epsilon: f64, delta: f64) {
         self.queries.push(PrivacyQuery { epsilon, delta });
+    }
+
+    /// Attempts to record a new privacy query, checking budget limits first.
+    ///
+    /// This method will fail if the query would cause the privacy budget to be exceeded.
+    /// Uses basic composition for budget checking.
+    ///
+    /// # Arguments
+    ///
+    /// * `epsilon` - The ε consumed by the mechanism.
+    /// * `delta` - The δ consumed by the mechanism.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the query was recorded, or an error if budget would be exceeded.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use differential_privacy::privacy_accounting::PrivacyAccountant;
+    ///
+    /// let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+    ///
+    /// // First query succeeds
+    /// assert!(accountant.try_update(0.5, 1e-6).is_ok());
+    ///
+    /// // Second query that exceeds budget fails
+    /// assert!(accountant.try_update(0.6, 1e-6).is_err());
+    /// ```
+    pub fn try_update(&mut self, epsilon: f64, delta: f64) -> Result<(), PrivacyBudgetError> {
+        self.try_update_with_method(epsilon, delta, CompositionMethod::Basic)
+    }
+
+    /// Attempts to record a new privacy query using the specified composition method.
+    ///
+    /// # Arguments
+    ///
+    /// * `epsilon` - The ε consumed by the mechanism.
+    /// * `delta` - The δ consumed by the mechanism.
+    /// * `method` - The composition method to use for budget checking.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the query was recorded, or an error if budget would be exceeded.
+    pub fn try_update_with_method(
+        &mut self,
+        epsilon: f64,
+        delta: f64,
+        method: CompositionMethod,
+    ) -> Result<(), PrivacyBudgetError> {
+        // Check if we can afford this query
+        self.can_afford_with_method(epsilon, delta, method)?;
+
+        // Record the query
+        self.queries.push(PrivacyQuery { epsilon, delta });
+        Ok(())
+    }
+
+    /// Checks if a query with the given parameters can be made within budget.
+    ///
+    /// Uses basic composition for budget checking.
+    ///
+    /// # Arguments
+    ///
+    /// * `epsilon` - The proposed ε for the query.
+    /// * `delta` - The proposed δ for the query.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the query can be made, or an error describing why not.
+    pub fn can_afford(&self, epsilon: f64, delta: f64) -> Result<(), PrivacyBudgetError> {
+        self.can_afford_with_method(epsilon, delta, CompositionMethod::Basic)
+    }
+
+    /// Checks if a query can be made within budget using the specified composition method.
+    ///
+    /// # Arguments
+    ///
+    /// * `epsilon` - The proposed ε for the query.
+    /// * `delta` - The proposed δ for the query.
+    /// * `method` - The composition method to use for budget calculation.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the query can be made, or an error describing why not.
+    pub fn can_afford_with_method(
+        &self,
+        epsilon: f64,
+        delta: f64,
+        method: CompositionMethod,
+    ) -> Result<(), PrivacyBudgetError> {
+        // Validate parameters
+        if epsilon < 0.0 {
+            return Err(PrivacyBudgetError::InvalidParameters(
+                "Epsilon must be non-negative".to_string(),
+            ));
+        }
+        if delta < 0.0 {
+            return Err(PrivacyBudgetError::InvalidParameters(
+                "Delta must be non-negative".to_string(),
+            ));
+        }
+
+        // If no budget is set, any query is allowed
+        if self.budget_epsilon.is_none() && self.budget_delta.is_none() {
+            return Ok(());
+        }
+
+        // Simulate adding the query
+        let mut temp_queries = self.queries.clone();
+        temp_queries.push(PrivacyQuery { epsilon, delta });
+
+        // Create a temporary accountant to compute the new privacy loss
+        let temp_accountant = PrivacyAccountant {
+            budget_epsilon: self.budget_epsilon,
+            budget_delta: self.budget_delta,
+            queries: temp_queries,
+        };
+
+        let (new_epsilon, new_delta) = temp_accountant.get_privacy_loss(method);
+        let (current_epsilon, current_delta) = self.get_privacy_loss(method);
+
+        let epsilon_exceeded = self
+            .budget_epsilon
+            .map(|b| new_epsilon > b)
+            .unwrap_or(false);
+
+        let delta_exceeded = self
+            .budget_delta
+            .map(|b| new_delta > b)
+            .unwrap_or(false);
+
+        match (epsilon_exceeded, delta_exceeded) {
+            (true, true) => Err(PrivacyBudgetError::BothBudgetsExceeded {
+                epsilon_requested: epsilon,
+                epsilon_available: self.budget_epsilon.unwrap_or(f64::INFINITY) - current_epsilon,
+                delta_requested: delta,
+                delta_available: self.budget_delta.unwrap_or(f64::INFINITY) - current_delta,
+            }),
+            (true, false) => Err(PrivacyBudgetError::EpsilonBudgetExceeded {
+                requested: epsilon,
+                available: self.budget_epsilon.unwrap() - current_epsilon,
+                total_after: new_epsilon,
+                budget: self.budget_epsilon.unwrap(),
+            }),
+            (false, true) => Err(PrivacyBudgetError::DeltaBudgetExceeded {
+                requested: delta,
+                available: self.budget_delta.unwrap() - current_delta,
+                total_after: new_delta,
+                budget: self.budget_delta.unwrap(),
+            }),
+            (false, false) => Ok(()),
+        }
+    }
+
+    /// Returns whether a budget has been set for this accountant.
+    pub fn has_budget(&self) -> bool {
+        self.budget_epsilon.is_some() || self.budget_delta.is_some()
+    }
+
+    /// Returns the budget limits, if set.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (epsilon_budget, delta_budget), where each may be `None`.
+    pub fn get_budget(&self) -> (Option<f64>, Option<f64>) {
+        (self.budget_epsilon, self.budget_delta)
+    }
+
+    /// Sets new budget limits.
+    ///
+    /// # Arguments
+    ///
+    /// * `epsilon_budget` - New epsilon budget (use `None` to remove limit).
+    /// * `delta_budget` - New delta budget (use `None` to remove limit).
+    pub fn set_budget(&mut self, epsilon_budget: Option<f64>, delta_budget: Option<f64>) {
+        self.budget_epsilon = epsilon_budget;
+        self.budget_delta = delta_budget;
     }
 
     /// Returns the number of queries recorded.
@@ -689,5 +951,169 @@ mod tests {
             "Expected >2x improvement, got {:.2}x",
             improvement_ratio
         );
+    }
+
+    #[test]
+    fn test_try_update_success() {
+        let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+        // Should succeed
+        let result = accountant.try_update(0.3, 1e-6);
+        assert!(result.is_ok());
+        assert_eq!(accountant.num_queries(), 1);
+
+        // Should succeed again
+        let result = accountant.try_update(0.3, 1e-6);
+        assert!(result.is_ok());
+        assert_eq!(accountant.num_queries(), 2);
+    }
+
+    #[test]
+    fn test_try_update_exceeds_epsilon() {
+        let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+        // Use up most of the budget
+        accountant.try_update(0.6, 0.0).unwrap();
+
+        // This should fail
+        let result = accountant.try_update(0.5, 0.0);
+        assert!(result.is_err());
+
+        match result {
+            Err(PrivacyBudgetError::EpsilonBudgetExceeded { requested, budget, .. }) => {
+                assert!((requested - 0.5).abs() < 1e-10);
+                assert!((budget - 1.0).abs() < 1e-10);
+            }
+            _ => panic!("Expected EpsilonBudgetExceeded error"),
+        }
+
+        // Query should not have been recorded
+        assert_eq!(accountant.num_queries(), 1);
+    }
+
+    #[test]
+    fn test_try_update_exceeds_delta() {
+        let mut accountant = PrivacyAccountant::with_budget(10.0, 1e-5);
+
+        // This should fail due to delta
+        let result = accountant.try_update(0.5, 1e-4);
+        assert!(result.is_err());
+
+        match result {
+            Err(PrivacyBudgetError::DeltaBudgetExceeded { requested, budget, .. }) => {
+                assert!((requested - 1e-4).abs() < 1e-15);
+                assert!((budget - 1e-5).abs() < 1e-15);
+            }
+            _ => panic!("Expected DeltaBudgetExceeded error"),
+        }
+    }
+
+    #[test]
+    fn test_try_update_no_budget() {
+        let mut accountant = PrivacyAccountant::new();
+
+        // Should always succeed without budget
+        let result = accountant.try_update(100.0, 1.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_can_afford_success() {
+        let accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+        let result = accountant.can_afford(0.5, 1e-6);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_can_afford_failure() {
+        let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+        accountant.update(0.6, 0.0);
+
+        let result = accountant.can_afford(0.5, 0.0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_can_afford_invalid_params() {
+        let accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+        // Negative epsilon
+        let result = accountant.can_afford(-0.5, 0.0);
+        assert!(matches!(result, Err(PrivacyBudgetError::InvalidParameters(_))));
+
+        // Negative delta
+        let result = accountant.can_afford(0.5, -1e-6);
+        assert!(matches!(result, Err(PrivacyBudgetError::InvalidParameters(_))));
+    }
+
+    #[test]
+    fn test_has_budget() {
+        let accountant1 = PrivacyAccountant::new();
+        assert!(!accountant1.has_budget());
+
+        let accountant2 = PrivacyAccountant::with_budget(1.0, 1e-5);
+        assert!(accountant2.has_budget());
+    }
+
+    #[test]
+    fn test_get_budget() {
+        let accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+        let (eps, delta) = accountant.get_budget();
+        assert_eq!(eps, Some(1.0));
+        assert_eq!(delta, Some(1e-5));
+    }
+
+    #[test]
+    fn test_set_budget() {
+        let mut accountant = PrivacyAccountant::new();
+        assert!(!accountant.has_budget());
+
+        accountant.set_budget(Some(2.0), Some(1e-6));
+        assert!(accountant.has_budget());
+
+        let (eps, delta) = accountant.get_budget();
+        assert_eq!(eps, Some(2.0));
+        assert_eq!(delta, Some(1e-6));
+    }
+
+    #[test]
+    fn test_try_update_with_advanced_composition() {
+        let mut accountant = PrivacyAccountant::with_budget(10.0, 1e-4);
+
+        // Add many small queries - should succeed with advanced composition
+        for _ in 0..50 {
+            let result = accountant.try_update_with_method(0.1, 0.0, CompositionMethod::Advanced);
+            assert!(result.is_ok(), "Query should succeed with advanced composition");
+        }
+
+        // Basic composition would give 5.0, but we used 50 queries
+        // Advanced composition should give a lower value for many queries
+        let (eps, _) = accountant.get_privacy_loss(CompositionMethod::Advanced);
+        let (basic_eps, _) = accountant.compute_basic_composition();
+
+        // Advanced may equal basic for small numbers of queries, but should never be worse
+        assert!(eps <= basic_eps, "Advanced should not exceed basic: {} > {}", eps, basic_eps);
+    }
+
+    #[test]
+    fn test_privacy_budget_error_display() {
+        let err = PrivacyBudgetError::EpsilonBudgetExceeded {
+            requested: 0.5,
+            available: 0.3,
+            total_after: 1.2,
+            budget: 1.0,
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Epsilon budget exceeded"));
+        assert!(msg.contains("0.5"));
+    }
+
+    #[test]
+    fn test_both_budgets_exceeded() {
+        let mut accountant = PrivacyAccountant::with_budget(0.5, 1e-6);
+
+        let result = accountant.try_update(1.0, 1e-5);
+        assert!(matches!(result, Err(PrivacyBudgetError::BothBudgetsExceeded { .. })));
     }
 }

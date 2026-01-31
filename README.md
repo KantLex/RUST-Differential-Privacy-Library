@@ -164,6 +164,72 @@ fn main() {
 }
 ```
 
+### Automatic Budget Enforcement
+
+Use `try_update` to automatically check budget before recording queries:
+
+```rust
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+    // try_update checks budget before recording
+    match accountant.try_update(0.5, 1e-6) {
+        Ok(()) => println!("Query recorded successfully"),
+        Err(e) => println!("Budget exceeded: {}", e),
+    }
+
+    // Check if we can afford a query before running
+    if accountant.can_afford(0.3, 0.0).is_ok() {
+        accountant.update(0.3, 0.0);
+    }
+}
+```
+
+### Budget-Enforcing Mechanisms
+
+Use the `BudgetedAccountant` for automatic enforcement with all mechanisms:
+
+```rust
+use differential_privacy::mechanisms::BudgetedAccountant;
+
+fn main() {
+    let mut accountant = BudgetedAccountant::new(1.0, 1e-5);
+
+    // All mechanism calls automatically check budget
+    match accountant.laplace(100.0, 1.0, 0.3) {
+        Ok(noisy_value) => println!("Result: {}", noisy_value),
+        Err(e) => println!("Failed: {}", e),
+    }
+
+    // Check remaining budget
+    let (remaining_eps, remaining_delta) = accountant.remaining_budget();
+    println!("Remaining: ε = {:?}, δ = {:?}", remaining_eps, remaining_delta);
+
+    // Queries that would exceed budget are rejected
+    let result = accountant.laplace(100.0, 1.0, 0.8); // Would exceed budget
+    assert!(result.is_err());
+}
+```
+
+Or use individual budgeted mechanism functions:
+
+```rust
+use differential_privacy::mechanisms::laplace_mechanism_budgeted;
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+    // Automatically checks and enforces budget
+    match laplace_mechanism_budgeted(100.0, 1.0, 0.5, &mut accountant) {
+        Ok(noisy_value) => println!("Result: {}", noisy_value),
+        Err(e) => println!("Budget exceeded: {}", e),
+    }
+}
+```
+
 ## API Reference
 
 ### Mechanisms
@@ -192,7 +258,13 @@ PrivacyAccountant::new()                          // No budget limits
 PrivacyAccountant::with_budget(epsilon, delta)    // With budget limits
 
 // Record queries
-accountant.update(epsilon, delta)
+accountant.update(epsilon, delta)                 // Record without checking budget
+accountant.try_update(epsilon, delta)             // Check budget, then record
+accountant.try_update_with_method(eps, delta, method)  // With specific composition
+
+// Check affordability
+accountant.can_afford(epsilon, delta)             // Check if query fits in budget
+accountant.can_afford_with_method(eps, delta, method)  // With specific composition
 
 // Get privacy loss
 accountant.compute_basic_composition()            // Basic composition
@@ -204,9 +276,22 @@ accountant.get_privacy_loss_rdp_optimal(delta)    // RDP composition
 // Budget management
 accountant.is_budget_exceeded(method)
 accountant.get_remaining_budget(method)
+accountant.has_budget()                           // Check if budget is set
+accountant.get_budget()                           // Get budget limits
+accountant.set_budget(Some(eps), Some(delta))     // Set new budget limits
 accountant.num_queries()
 accountant.reset()
 ```
+
+### Budget-Enforcing Mechanisms
+
+| Function | Description |
+|----------|-------------|
+| `laplace_mechanism_budgeted` | Laplace with automatic budget check |
+| `gaussian_mechanism_budgeted` | Gaussian with automatic budget check |
+| `exponential_mechanism_budgeted` | Exponential with automatic budget check |
+| `report_noisy_max_budgeted` | Report Noisy Max with automatic budget check |
+| `BudgetedAccountant` | Wrapper with all mechanisms built-in |
 
 ## Running Tests
 
