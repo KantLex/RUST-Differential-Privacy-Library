@@ -11,7 +11,26 @@
 //! - **Privacy Accounting**: Basic, Advanced, and RDP composition
 //! - **Budget Enforcement**: Automatic budget checking and enforcement
 //!
-//! ## Quick Start
+//! ## Quick Start (Simplified API)
+//!
+//! For beginners, use the simplified API which requires minimal configuration:
+//!
+//! ```rust
+//! use differential_privacy::prelude::*;
+//!
+//! // Add noise to a count with medium privacy
+//! let private_count = add_noise(100.0, PrivacyLevel::Medium);
+//! println!("Private count: {}", private_count);
+//!
+//! // Compute private statistics
+//! let values = vec![10.0, 20.0, 30.0, 40.0, 50.0];
+//! let private_avg = private_mean_simple(&values, 0.0, 100.0, PrivacyLevel::High);
+//! println!("Private average: {:.1}", private_avg);
+//! ```
+//!
+//! ## Full API
+//!
+//! For advanced users who need privacy accounting and composition:
 //!
 //! ```rust
 //! use differential_privacy::mechanisms::laplace_mechanism;
@@ -24,9 +43,25 @@
 //!
 //! ## Modules
 //!
+//! - [`prelude`]: Easy imports for the simplified API (beginners start here)
+//! - [`simple`]: Simplified functions that don't require privacy accounting
 //! - [`privacy_accounting`]: Privacy budget tracking and composition
 //! - [`mechanisms`]: Core DP mechanisms for adding noise
 //! - [`aggregations`]: Private aggregation functions for arrays
+
+/// Simplified API for Beginners
+///
+/// Easy-to-use functions that don't require understanding all the details
+/// of differential privacy. Perfect for getting started quickly.
+pub mod simple;
+
+/// Prelude - Easy Imports
+///
+/// Import everything you need for the simplified API with a single `use` statement:
+/// ```rust
+/// use differential_privacy::prelude::*;
+/// ```
+pub mod prelude;
 
 /// Privacy Accounting Module
 ///
