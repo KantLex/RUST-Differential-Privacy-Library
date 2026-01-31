@@ -32,10 +32,10 @@ use crate::privacy_accounting::PrivacyAccountant;
 ///     let value = 100.0;
 ///     let sensitivity = 1.0;
 ///     let epsilon = 0.5;
-///     let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+///     let mut accountant = PrivacyAccountant::new();
 ///     let noisy_value = laplace_mechanism(value, sensitivity, epsilon, &mut accountant);
 ///     println!("Noisy Value: {}", noisy_value);
-///     let (total_epsilon, _) = accountant.get_privacy_loss();
+///     let (total_epsilon, _) = accountant.compute_basic_composition();
 ///     println!("Total Epsilon: {}", total_epsilon);
 /// }
 /// ```
@@ -86,7 +86,7 @@ mod tests {
         let value = 10.0;
         let sensitivity = 1.0;
         let epsilon = 0.5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let noisy_value = laplace_mechanism(value, sensitivity, epsilon, &mut accountant);
 
         // Check that noisy_value is not equal to the original value
@@ -109,9 +109,9 @@ mod tests {
         let value = 20.0;
         let sensitivity = 2.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let _ = laplace_mechanism(value, sensitivity, epsilon, &mut accountant);
-        let (total_epsilon, total_delta) = accountant.get_privacy_loss();
+        let (total_epsilon, total_delta) = accountant.compute_basic_composition();
         assert_eq!(total_epsilon, epsilon);
         assert_eq!(total_delta, 0.0, "Delta should remain zero for Laplace Mechanism.");
     }
