@@ -34,7 +34,7 @@ use crate::privacy_accounting::PrivacyAccountant;
 ///     let counts = vec![150.0, 200.0, 175.0, 50.0];
 ///     let sensitivity = 1.0; // Each person affects one count by at most 1
 ///     let epsilon = 0.5;
-///     let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+///     let mut accountant = PrivacyAccountant::new();
 ///
 ///     let (winning_index, noisy_max) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
 ///         .expect("Invalid parameters");
@@ -138,7 +138,7 @@ mod tests {
         let counts = vec![10.0, 20.0, 30.0, 40.0, 50.0];
         let sensitivity = 1.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant);
         assert!(result.is_ok());
@@ -152,12 +152,12 @@ mod tests {
         let counts = vec![10.0, 20.0, 30.0];
         let sensitivity = 1.0;
         let epsilon = 0.5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let _ = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
             .expect("Should succeed");
 
-        let (total_epsilon, total_delta) = accountant.get_privacy_loss();
+        let (total_epsilon, total_delta) = accountant.compute_basic_composition();
         assert_eq!(total_epsilon, epsilon);
         assert_eq!(total_delta, 0.0, "Delta should be zero for Report Noisy Max.");
     }
@@ -173,7 +173,7 @@ mod tests {
         let num_trials = 1000;
 
         for _ in 0..num_trials {
-            let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+            let mut accountant = PrivacyAccountant::new();
             let (index, _) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
                 .expect("Should succeed");
             *counts_map.entry(index).or_insert(0) += 1;
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn test_report_noisy_max_rejects_empty_counts() {
         let counts: Vec<f64> = vec![];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, 1.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_report_noisy_max_rejects_invalid_epsilon() {
         let counts = vec![10.0, 20.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, 1.0, 0.0, &mut accountant);
         assert!(result.is_err());
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_report_noisy_max_rejects_invalid_sensitivity() {
         let counts = vec![10.0, 20.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, 0.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_report_noisy_max_rejects_nan_counts() {
         let counts = vec![10.0, f64::NAN, 30.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, 1.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -241,7 +241,7 @@ mod tests {
         let counts = vec![100.0, 200.0, 150.0];
         let sensitivity = 1.0;
         let epsilon = 5.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_argmax(&counts, sensitivity, epsilon, &mut accountant);
         assert!(result.is_ok());
@@ -255,7 +255,7 @@ mod tests {
         let counts = vec![42.0];
         let sensitivity = 1.0;
         let epsilon = 0.5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         for _ in 0..10 {
             let (index, _) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
@@ -275,7 +275,7 @@ mod tests {
         let num_trials = 10000;
 
         for _ in 0..num_trials {
-            let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+            let mut accountant = PrivacyAccountant::new();
             let (index, _) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
                 .expect("Should succeed");
             counts_map[index] += 1;
@@ -299,7 +299,7 @@ mod tests {
         let counts = vec![-100.0, -50.0, -10.0];
         let sensitivity = 1.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant);
         assert!(result.is_ok());

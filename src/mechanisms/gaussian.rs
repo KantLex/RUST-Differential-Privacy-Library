@@ -34,11 +34,11 @@ use crate::privacy_accounting::PrivacyAccountant;
 ///     let sensitivity = 1.0;
 ///     let epsilon = 0.5;
 ///     let delta = 1e-5;
-///     let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+///     let mut accountant = PrivacyAccountant::new();
 ///     let noisy_value = gaussian_mechanism(value, sensitivity, epsilon, delta, &mut accountant)
 ///         .expect("Invalid parameters");
 ///     println!("Noisy Value: {}", noisy_value);
-///     let (total_epsilon, total_delta) = accountant.get_privacy_loss();
+///     let (total_epsilon, total_delta) = accountant.compute_basic_composition();
 ///     println!("Total Epsilon: {}, Total Delta: {}", total_epsilon, total_delta);
 /// }
 /// ```
@@ -111,7 +111,7 @@ mod tests {
         let sensitivity = 1.0;
         let epsilon = 0.5;
         let delta = 1e-5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let noisy_value = gaussian_mechanism(value, sensitivity, epsilon, delta, &mut accountant)
             .expect("Should succeed with valid parameters");
 
@@ -134,18 +134,18 @@ mod tests {
         let sensitivity = 2.0;
         let epsilon = 1.0;
         let delta = 1e-5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let _ = gaussian_mechanism(value, sensitivity, epsilon, delta, &mut accountant)
             .expect("Should succeed with valid parameters");
 
-        let (total_epsilon, total_delta) = accountant.get_privacy_loss();
+        let (total_epsilon, total_delta) = accountant.compute_basic_composition();
         assert_eq!(total_epsilon, epsilon);
         assert_eq!(total_delta, delta, "Delta should be tracked for Gaussian Mechanism.");
     }
 
     #[test]
     fn test_gaussian_mechanism_rejects_invalid_epsilon() {
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let result = gaussian_mechanism(10.0, 1.0, 0.0, 1e-5, &mut accountant);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Epsilon must be positive.");
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_gaussian_mechanism_rejects_invalid_sensitivity() {
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let result = gaussian_mechanism(10.0, -1.0, 0.5, 1e-5, &mut accountant);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Sensitivity must be non-negative.");
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_gaussian_mechanism_rejects_invalid_delta() {
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         // Delta = 0 is invalid
         let result = gaussian_mechanism(10.0, 1.0, 0.5, 0.0, &mut accountant);
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_gaussian_mechanism_zero_sensitivity() {
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
         let result = gaussian_mechanism(10.0, 0.0, 0.5, 1e-5, &mut accountant);
         assert!(result.is_ok());
         // With zero sensitivity, sigma = 0, so no noise is added

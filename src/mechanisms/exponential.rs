@@ -34,7 +34,7 @@ use crate::privacy_accounting::PrivacyAccountant;
 ///     let utilities = vec![10.0, 25.0, 15.0, 5.0]; // Category scores
 ///     let sensitivity = 1.0;
 ///     let epsilon = 0.5;
-///     let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+///     let mut accountant = PrivacyAccountant::new();
 ///
 ///     let selected_index = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant)
 ///         .expect("Invalid parameters");
@@ -135,7 +135,7 @@ mod tests {
         let utilities = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let sensitivity = 1.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant);
         assert!(result.is_ok());
@@ -148,12 +148,12 @@ mod tests {
         let utilities = vec![1.0, 2.0, 3.0];
         let sensitivity = 1.0;
         let epsilon = 0.5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let _ = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant)
             .expect("Should succeed");
 
-        let (total_epsilon, total_delta) = accountant.get_privacy_loss();
+        let (total_epsilon, total_delta) = accountant.compute_basic_composition();
         assert_eq!(total_epsilon, epsilon);
         assert_eq!(total_delta, 0.0, "Delta should be zero for Exponential Mechanism.");
     }
@@ -164,7 +164,7 @@ mod tests {
         let utilities = vec![0.0, 0.0, 100.0, 0.0]; // Index 2 has much higher utility
         let sensitivity = 1.0;
         let epsilon = 10.0; // High epsilon = less noise = stronger preference
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let mut counts = HashMap::new();
         let num_trials = 1000;
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_exponential_mechanism_rejects_empty_utilities() {
         let utilities: Vec<f64> = vec![];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, 1.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_exponential_mechanism_rejects_invalid_epsilon() {
         let utilities = vec![1.0, 2.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, 1.0, 0.0, &mut accountant);
         assert!(result.is_err());
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_exponential_mechanism_rejects_invalid_sensitivity() {
         let utilities = vec![1.0, 2.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, 0.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_exponential_mechanism_rejects_nan_utilities() {
         let utilities = vec![1.0, f64::NAN, 3.0];
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, 1.0, 0.5, &mut accountant);
         assert!(result.is_err());
@@ -238,7 +238,7 @@ mod tests {
         let utilities = vec![-10.0, -5.0, -1.0];
         let sensitivity = 1.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let result = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant);
         assert!(result.is_ok());
@@ -250,7 +250,7 @@ mod tests {
         let utilities = vec![5.0];
         let sensitivity = 1.0;
         let epsilon = 0.5;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         for _ in 0..10 {
             let index = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant)
@@ -265,7 +265,7 @@ mod tests {
         let utilities = vec![5.0, 5.0, 5.0, 5.0];
         let sensitivity = 1.0;
         let epsilon = 1.0;
-        let mut accountant = PrivacyAccountant::new(0.0, 0.0);
+        let mut accountant = PrivacyAccountant::new();
 
         let mut counts = [0usize; 4];
         let num_trials = 10000;
