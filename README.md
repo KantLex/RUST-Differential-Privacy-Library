@@ -796,7 +796,25 @@ fn main() {
 
 ## API Reference
 
-### Mechanisms
+### Simplified API (Beginners)
+
+Import with: `use differential_privacy::prelude::*;`
+
+| Function | Description |
+|----------|-------------|
+| `add_noise(value, level)` | Add Laplace noise (sensitivity=1) |
+| `add_noise_with_sensitivity(value, sens, level)` | Add noise with custom sensitivity |
+| `private_sum_simple(values, lo, hi, level)` | Private sum with clipping |
+| `private_mean_simple(values, lo, hi, level)` | Private mean with clipping |
+| `private_count_simple(count, level)` | Private count |
+| `private_select(candidates, scores, level)` | Private selection from options |
+| `private_argmax(counts, level)` | Private index of maximum |
+| `estimate_noise(sensitivity, level)` | Preview noise magnitude |
+| `suggest_privacy_level(dataset_size)` | Get recommended privacy level |
+| `PrivateQuery::new(value)` | Builder pattern for queries |
+| `PrivacyLevel::Low/Medium/High/VeryHigh` | Privacy presets (ε=1.0/0.5/0.1/0.01) |
+
+### Mechanisms (Full API)
 
 | Function | Privacy | Description |
 |----------|---------|-------------|
@@ -923,7 +941,7 @@ cargo test mechanisms::laplace
 cargo test --doc
 ```
 
-Current test coverage: 123 unit tests + 26 doc-tests.
+Current test coverage: 136 unit tests + 41 doc-tests.
 
 ## Examples
 
