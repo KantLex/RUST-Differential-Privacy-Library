@@ -11,6 +11,7 @@
 /// - **Gaussian Mechanism**: Adds Gaussian-distributed noise for (ε, δ)-differential privacy.
 /// - **Exponential Mechanism**: Privately selects an item from candidates based on utility scores.
 /// - **Report Noisy Max**: Privately reports the index of the maximum value in a set of counts.
+/// - **Sparse Vector Technique**: Answer many threshold queries with fixed privacy budget.
 ///
 /// ## Budget-Enforcing Mechanisms
 ///
@@ -22,6 +23,7 @@ pub mod gaussian;
 pub mod exponential;
 pub mod report_noisy_max;
 pub mod budgeted;
+pub mod sparse_vector;
 
 /// Expose mechanism functions for external use.
 pub use laplace::laplace_mechanism;
@@ -37,4 +39,14 @@ pub use budgeted::{
     report_noisy_max_budgeted,
     BudgetedAccountant,
     BudgetedMechanismError,
+};
+
+/// Expose Sparse Vector Technique.
+pub use sparse_vector::{
+    SparseVectorTechnique,
+    NumericSparseVector,
+    ThresholdResult,
+    NumericThresholdResult,
+    sparse_vector_find_first,
+    sparse_vector_find_all,
 };

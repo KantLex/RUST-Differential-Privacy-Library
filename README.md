@@ -10,6 +10,7 @@ A robust, performant, and easy-to-use toolkit for incorporating privacy-preservi
     * **Gaussian Mechanism:** For adding noise to real-valued queries, providing (ε, δ)-differential privacy.
     * **Exponential Mechanism:** For privately selecting an item from a set of candidates based on utility scores.
     * **Report Noisy Max:** For privately releasing the index of the maximum value in a set of counts.
+    * **Sparse Vector Technique:** Answer many threshold queries with a fixed privacy budget.
 * **Advanced Privacy Accounting:** Multiple composition methods for tighter privacy bounds:
     * **Basic Composition:** Simple additive composition (ε_total = Σε_i)
     * **Advanced Composition:** Tighter bounds using the Dwork-Rothblum-Vadhan theorem
@@ -113,6 +114,64 @@ fn main() {
     let (winning_index, noisy_max) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
         .expect("Invalid parameters");
     println!("Winning option: {} (noisy count: {})", winning_index, noisy_max);
+}
+```
+
+### Sparse Vector Technique
+
+The Sparse Vector Technique (SVT) answers many threshold queries with a fixed privacy budget. It's ideal when you expect most queries to be below a threshold and want to identify the few that exceed it.
+
+```rust
+use differential_privacy::mechanisms::{SparseVectorTechnique, ThresholdResult};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    // Create SVT: threshold=100, sensitivity=1, epsilon=1.0, max 3 "Above" answers
+    let mut svt = SparseVectorTechnique::new(100.0, 1.0, 1.0, 3, &mut accountant)
+        .expect("Invalid parameters");
+
+    // Process queries one at a time
+    let queries = vec![50.0, 120.0, 80.0, 150.0, 90.0, 200.0];
+
+    for query_value in queries {
+        match svt.query(query_value) {
+            Some(ThresholdResult::Above) => println!("{}: Above threshold!", query_value),
+            Some(ThresholdResult::Below) => println!("{}: Below threshold", query_value),
+            None => {
+                println!("SVT exhausted (found max above-threshold answers)");
+                break;
+            }
+        }
+    }
+
+    println!("Found {} queries above threshold", svt.above_count());
+}
+```
+
+For convenience, use the helper functions:
+
+```rust
+use differential_privacy::mechanisms::{sparse_vector_find_first, sparse_vector_find_all};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+    let queries = vec![50.0, 80.0, 120.0, 90.0, 150.0, 200.0];
+
+    // Find the first query above threshold
+    if let Some(index) = sparse_vector_find_first(&queries, 100.0, 1.0, 0.5, &mut accountant)
+        .expect("Invalid parameters")
+    {
+        println!("First above threshold at index: {}", index);
+    }
+
+    // Find all queries above threshold (up to max 3)
+    let mut accountant2 = PrivacyAccountant::new();
+    let above_indices = sparse_vector_find_all(&queries, 100.0, 1.0, 0.5, 3, &mut accountant2)
+        .expect("Invalid parameters");
+    println!("Queries above threshold at indices: {:?}", above_indices);
 }
 ```
 
@@ -320,6 +379,19 @@ fn main() {
 | `gaussian_mechanism` | (ε, δ)-DP | Adding noise when δ > 0 is acceptable |
 | `exponential_mechanism` | ε-DP | Selecting from discrete candidates |
 | `report_noisy_max` | ε-DP | Finding the argmax of counts |
+| `SparseVectorTechnique` | ε-DP | Many threshold queries with fixed budget |
+| `NumericSparseVector` | ε-DP | SVT with noisy output values |
+
+### Sparse Vector Technique
+
+| Function/Type | Description |
+|---------------|-------------|
+| `SparseVectorTechnique` | Basic SVT returning Above/Below for each query |
+| `NumericSparseVector` | SVT that also outputs noisy values for above-threshold |
+| `sparse_vector_find_first` | Find first query exceeding threshold |
+| `sparse_vector_find_all` | Find all queries exceeding threshold (up to max) |
+| `ThresholdResult` | Enum: `Above` or `Below` |
+| `NumericThresholdResult` | Enum: `Above(f64)` or `Below` |
 
 ### Aggregation Functions
 
