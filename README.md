@@ -1,129 +1,248 @@
 # Differential Privacy Library in Rust
 
-A robust, performant, and easy-to-use toolkit for incorporating privacy-preserving techniques into data analysis pipelines.
+A robust, performant, and comprehensive toolkit for implementing differential privacy in data analysis pipelines. Built with Rust's safety guarantees and zero-cost abstractions.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Mechanisms](#core-mechanisms)
+  - [Laplace Mechanism](#laplace-mechanism)
+  - [Gaussian Mechanism](#gaussian-mechanism)
+  - [Exponential Mechanism](#exponential-mechanism)
+  - [Report Noisy Max](#report-noisy-max)
+  - [Sparse Vector Technique](#sparse-vector-technique)
+- [Privacy Amplification by Subsampling](#privacy-amplification-by-subsampling)
+- [Private Aggregations](#private-aggregations)
+- [Privacy Accounting](#privacy-accounting)
+- [Budget Management](#budget-management)
+- [API Reference](#api-reference)
+- [Mathematical Background](#mathematical-background)
+- [Testing](#testing)
+- [License](#license)
+
+## Overview
+
+Differential privacy is a mathematical framework that provides strong privacy guarantees when analyzing sensitive data. This library implements the core building blocks for differentially private data analysis:
+
+- **Noise Mechanisms**: Add calibrated random noise to query results
+- **Selection Mechanisms**: Privately choose from discrete options
+- **Threshold Mechanisms**: Answer many threshold queries efficiently
+- **Privacy Accounting**: Track cumulative privacy loss across queries
+- **Subsampling Amplification**: Strengthen privacy through random sampling
+
+### What is Differential Privacy?
+
+A randomized algorithm M satisfies (ε, δ)-differential privacy if for all datasets D and D' differing in one record, and all possible outputs S:
+
+```
+P[M(D) ∈ S] ≤ e^ε × P[M(D') ∈ S] + δ
+```
+
+- **ε (epsilon)**: Privacy budget. Smaller = stronger privacy.
+- **δ (delta)**: Probability of privacy breach. Typically ≤ 1/n².
 
 ## Features
 
-* **Epsilon-Delta Differential Privacy:** Supports both ε and (ε, δ)-differential privacy, allowing for flexible privacy guarantees.
-* **Variety of Mechanisms:** Implements several common mechanisms, including:
-    * **Laplace Mechanism:** For adding noise to real-valued queries with ε-differential privacy.
-    * **Gaussian Mechanism:** For adding noise to real-valued queries, providing (ε, δ)-differential privacy.
-    * **Exponential Mechanism:** For privately selecting an item from a set of candidates based on utility scores.
-    * **Report Noisy Max:** For privately releasing the index of the maximum value in a set of counts.
-    * **Sparse Vector Technique:** Answer many threshold queries with a fixed privacy budget.
-* **Privacy Amplification by Subsampling:** Stronger guarantees when using data subsamples:
-    * **Poisson Subsampling:** Each record included independently with probability q
-    * **Uniform Subsampling:** Fixed-size random subset without replacement
-    * **Amplified Privacy:** Effective ε ≈ q × base_ε for small sampling rates
-* **Advanced Privacy Accounting:** Multiple composition methods for tighter privacy bounds:
-    * **Basic Composition:** Simple additive composition (ε_total = Σε_i)
-    * **Advanced Composition:** Tighter bounds using the Dwork-Rothblum-Vadhan theorem
-    * **Optimal Composition:** Numerically optimized δ' allocation
-    * **RDP Composition:** Rényi Differential Privacy for even tighter bounds
-* **Budget Management:** Track and enforce privacy budgets across multiple queries.
-* **Private Aggregations:** Built-in differentially private aggregation functions:
-    * **Private Sum/Mean/Count:** Compute statistics with Laplace noise
-    * **Private Variance:** Bounded variance estimation
-    * **Private Histogram:** Per-bin noise for histogram queries
-    * **Vector Noise:** Add Laplace/Gaussian noise to entire arrays
-    * **Sensitivity Calculators:** Utilities for computing query sensitivity
-* **Rust-based:** Benefits from Rust's performance, memory safety, and strong type system.
-* **Comprehensive Testing:** Includes unit tests and statistical validation for all mechanisms.
+### Core Mechanisms
+- **Laplace Mechanism**: ε-DP noise for numeric queries
+- **Gaussian Mechanism**: (ε, δ)-DP noise with better composition
+- **Exponential Mechanism**: Private selection from discrete candidates
+- **Report Noisy Max**: Private argmax for counting queries
+- **Sparse Vector Technique**: Answer many threshold queries with fixed budget
 
-## Getting Started
+### Privacy Amplification
+- **Poisson Subsampling**: Each record included with probability q
+- **Uniform Subsampling**: Fixed-size random subset
+- **Amplification Formulas**: Compute tighter privacy bounds
 
-Add this library to your `Cargo.toml`:
+### Private Aggregations
+- **Private Sum/Mean/Count**: Basic statistics with noise
+- **Private Variance**: Bounded variance estimation
+- **Private Histogram**: Per-bin noise for distributions
+- **Vector Operations**: Noise on entire arrays
+
+### Privacy Accounting
+- **Basic Composition**: Simple additive bounds
+- **Advanced Composition**: Tighter Dwork-Rothblum-Vadhan bounds
+- **Optimal Composition**: Numerically optimized bounds
+- **RDP Composition**: Rényi Differential Privacy
+
+### Budget Management
+- **Budget Enforcement**: Automatic limit checking
+- **Detailed Errors**: Clear messages when budget exceeded
+- **Flexible Limits**: Set ε and/or δ budgets
+
+## Installation
+
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 differential_privacy = "0.1.0"
+ndarray = "0.15"  # Required for aggregation functions
 ```
 
-## Usage Examples
-
-### Laplace Mechanism
+## Quick Start
 
 ```rust
 use differential_privacy::mechanisms::laplace_mechanism;
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 
 fn main() {
-    let value = 100.0;
-    let sensitivity = 1.0;
-    let epsilon = 0.5;
+    // Create a privacy accountant to track budget usage
     let mut accountant = PrivacyAccountant::new();
 
-    let noisy_value = laplace_mechanism(value, sensitivity, epsilon, &mut accountant);
-    println!("Noisy Value: {}", noisy_value);
+    // True query result (e.g., sum of salaries)
+    let true_value = 1_000_000.0;
 
-    let (total_epsilon, _) = accountant.compute_basic_composition();
-    println!("Total Epsilon: {}", total_epsilon);
+    // Add Laplace noise for privacy
+    // sensitivity = max change from one person = 200000 (max salary)
+    // epsilon = 1.0 (privacy budget)
+    let noisy_value = laplace_mechanism(true_value, 200_000.0, 1.0, &mut accountant);
+
+    println!("True value: ${:.2}", true_value);
+    println!("Noisy value: ${:.2}", noisy_value);
+
+    // Check privacy consumption
+    let (total_eps, total_delta) = accountant.compute_basic_composition();
+    println!("Privacy spent: ε = {}, δ = {}", total_eps, total_delta);
 }
 ```
 
+## Core Mechanisms
+
+### Laplace Mechanism
+
+The Laplace mechanism adds noise drawn from a Laplace distribution, providing pure ε-differential privacy. Best for numeric queries where you want simple privacy guarantees.
+
+**When to use**: Counting, sums, averages with bounded sensitivity.
+
+```rust
+use differential_privacy::mechanisms::laplace_mechanism;
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    // Example: Count of users over age 30
+    let true_count = 1542.0;
+    let sensitivity = 1.0;  // One person changes count by at most 1
+    let epsilon = 0.5;      // Privacy budget
+
+    let noisy_count = laplace_mechanism(true_count, sensitivity, epsilon, &mut accountant);
+
+    println!("True count: {}", true_count);
+    println!("Noisy count: {:.0}", noisy_count);
+
+    // Expected noise magnitude: sensitivity / epsilon = 2.0
+    // 95% of noise will be within ±6 of true value
+}
+```
+
+**Privacy guarantee**: For sensitivity Δ and epsilon ε, noise is Laplace(Δ/ε).
+
 ### Gaussian Mechanism
+
+The Gaussian mechanism adds normally-distributed noise, providing (ε, δ)-differential privacy. Better for composition (running many queries) due to tighter RDP bounds.
+
+**When to use**: When δ > 0 is acceptable and you'll run many queries.
 
 ```rust
 use differential_privacy::mechanisms::gaussian_mechanism;
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 
 fn main() {
-    let value = 100.0;
-    let sensitivity = 1.0;
-    let epsilon = 0.5;
-    let delta = 1e-5;
     let mut accountant = PrivacyAccountant::new();
 
-    let noisy_value = gaussian_mechanism(value, sensitivity, epsilon, delta, &mut accountant)
-        .expect("Invalid parameters");
-    println!("Noisy Value: {}", noisy_value);
+    let true_value = 500.0;
+    let sensitivity = 10.0;
+    let epsilon = 1.0;
+    let delta = 1e-5;  // Probability of privacy breach
 
-    let (total_epsilon, total_delta) = accountant.compute_basic_composition();
-    println!("Total Epsilon: {}, Total Delta: {}", total_epsilon, total_delta);
+    let noisy_value = gaussian_mechanism(true_value, sensitivity, epsilon, delta, &mut accountant)
+        .expect("Invalid parameters");
+
+    println!("True value: {}", true_value);
+    println!("Noisy value: {:.2}", noisy_value);
+
+    // Verify privacy tracking
+    let (eps, del) = accountant.compute_basic_composition();
+    println!("Privacy: ε = {}, δ = {}", eps, del);
 }
 ```
 
+**Privacy guarantee**: Noise is N(0, σ²) where σ = Δ × √(2 ln(1.25/δ)) / ε.
+
 ### Exponential Mechanism
+
+The exponential mechanism privately selects an item from a discrete set based on utility scores. Items with higher utility are more likely to be selected.
+
+**When to use**: Selecting categories, choosing features, picking locations.
 
 ```rust
 use differential_privacy::mechanisms::exponential_mechanism;
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 
 fn main() {
-    // Select the best category privately based on utility scores
-    let utilities = vec![10.0, 25.0, 15.0, 5.0];
-    let sensitivity = 1.0;
-    let epsilon = 0.5;
     let mut accountant = PrivacyAccountant::new();
 
-    let selected_index = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant)
+    // Example: Choose the best marketing channel based on conversion rates
+    let channels = vec!["Email", "Social", "Search", "Display"];
+    let utilities = vec![15.2, 23.5, 18.1, 8.4];  // Conversion rates
+
+    let sensitivity = 1.0;  // Max change in utility from one user
+    let epsilon = 1.0;
+
+    let selected_idx = exponential_mechanism(&utilities, sensitivity, epsilon, &mut accountant)
         .expect("Invalid parameters");
-    println!("Selected category index: {}", selected_index);
+
+    println!("Selected channel: {} (utility: {:.1})",
+             channels[selected_idx], utilities[selected_idx]);
+
+    // Higher epsilon = more likely to pick the true best
+    // Lower epsilon = more random selection for privacy
 }
 ```
 
+**Privacy guarantee**: Item i selected with probability ∝ exp(ε × utility[i] / (2Δ)).
+
 ### Report Noisy Max
+
+Report Noisy Max finds the index of the maximum value in a set of counts, with privacy protection. Returns both the winning index and the noisy maximum value.
+
+**When to use**: Finding the most popular category, winner of a vote, most common value.
 
 ```rust
 use differential_privacy::mechanisms::report_noisy_max;
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 
 fn main() {
-    // Find the winning option from vote counts
-    let counts = vec![150.0, 200.0, 175.0, 50.0];
-    let sensitivity = 1.0;
-    let epsilon = 0.5;
     let mut accountant = PrivacyAccountant::new();
 
-    let (winning_index, noisy_max) = report_noisy_max(&counts, sensitivity, epsilon, &mut accountant)
-        .expect("Invalid parameters");
-    println!("Winning option: {} (noisy count: {})", winning_index, noisy_max);
+    // Example: Find the winning candidate in an election
+    let candidates = vec!["Alice", "Bob", "Carol", "David"];
+    let vote_counts = vec![1523.0, 1891.0, 1456.0, 892.0];
+
+    let sensitivity = 1.0;  // One person affects one count by 1
+    let epsilon = 0.5;
+
+    let (winner_idx, noisy_count) = report_noisy_max(
+        &vote_counts, sensitivity, epsilon, &mut accountant
+    ).expect("Invalid parameters");
+
+    println!("Winner: {} with approximately {:.0} votes",
+             candidates[winner_idx], noisy_count);
 }
 ```
 
 ### Sparse Vector Technique
 
-The Sparse Vector Technique (SVT) answers many threshold queries with a fixed privacy budget. It's ideal when you expect most queries to be below a threshold and want to identify the few that exceed it.
+The Sparse Vector Technique (SVT) answers many threshold queries ("Is query result ≥ T?") with a fixed privacy budget. Only queries that exceed the threshold consume significant privacy.
+
+**When to use**: Finding rare events, anomaly detection, identifying values above a threshold.
 
 ```rust
 use differential_privacy::mechanisms::{SparseVectorTechnique, ThresholdResult};
@@ -132,29 +251,44 @@ use differential_privacy::privacy_accounting::PrivacyAccountant;
 fn main() {
     let mut accountant = PrivacyAccountant::new();
 
-    // Create SVT: threshold=100, sensitivity=1, epsilon=1.0, max 3 "Above" answers
-    let mut svt = SparseVectorTechnique::new(100.0, 1.0, 1.0, 3, &mut accountant)
-        .expect("Invalid parameters");
+    // Find days with unusually high traffic (> 10000 visitors)
+    let daily_traffic = vec![
+        8500.0, 9200.0, 12500.0, 7800.0, 15200.0,
+        9100.0, 8900.0, 11000.0, 6500.0, 18000.0
+    ];
 
-    // Process queries one at a time
-    let queries = vec![50.0, 120.0, 80.0, 150.0, 90.0, 200.0];
+    // Create SVT: finds up to 3 days above threshold 10000
+    let mut svt = SparseVectorTechnique::new(
+        10000.0,  // threshold
+        1.0,      // sensitivity (one user = one visit)
+        1.0,      // total epsilon budget
+        3,        // max "above threshold" answers
+        &mut accountant
+    ).expect("Invalid parameters");
 
-    for query_value in queries {
-        match svt.query(query_value) {
-            Some(ThresholdResult::Above) => println!("{}: Above threshold!", query_value),
-            Some(ThresholdResult::Below) => println!("{}: Below threshold", query_value),
+    println!("Days with high traffic:");
+    for (day, &traffic) in daily_traffic.iter().enumerate() {
+        match svt.query(traffic) {
+            Some(ThresholdResult::Above) => {
+                println!("  Day {}: HIGH (actual: {:.0})", day + 1, traffic);
+            }
+            Some(ThresholdResult::Below) => {
+                // Don't reveal anything about below-threshold days
+            }
             None => {
-                println!("SVT exhausted (found max above-threshold answers)");
+                println!("  (SVT exhausted - found {} high-traffic days)", svt.above_count());
                 break;
             }
         }
     }
 
-    println!("Found {} queries above threshold", svt.above_count());
+    // Key benefit: Fixed privacy cost regardless of how many days we check!
+    let (eps, _) = accountant.compute_basic_composition();
+    println!("\nTotal privacy cost: ε = {} (fixed!)", eps);
 }
 ```
 
-For convenience, use the helper functions:
+**Convenience functions**:
 
 ```rust
 use differential_privacy::mechanisms::{sparse_vector_find_first, sparse_vector_find_all};
@@ -162,42 +296,71 @@ use differential_privacy::privacy_accounting::PrivacyAccountant;
 
 fn main() {
     let mut accountant = PrivacyAccountant::new();
-    let queries = vec![50.0, 80.0, 120.0, 90.0, 150.0, 200.0];
+    let values = vec![50.0, 80.0, 120.0, 90.0, 150.0, 200.0, 75.0];
 
-    // Find the first query above threshold
-    if let Some(index) = sparse_vector_find_first(&queries, 100.0, 1.0, 0.5, &mut accountant)
+    // Find first value above 100
+    if let Some(idx) = sparse_vector_find_first(&values, 100.0, 1.0, 0.5, &mut accountant)
         .expect("Invalid parameters")
     {
-        println!("First above threshold at index: {}", index);
+        println!("First value above 100 at index {}", idx);
     }
 
-    // Find all queries above threshold (up to max 3)
+    // Find all values above 100 (up to 3)
     let mut accountant2 = PrivacyAccountant::new();
-    let above_indices = sparse_vector_find_all(&queries, 100.0, 1.0, 0.5, 3, &mut accountant2)
+    let indices = sparse_vector_find_all(&values, 100.0, 1.0, 0.5, 3, &mut accountant2)
         .expect("Invalid parameters");
-    println!("Queries above threshold at indices: {:?}", above_indices);
+    println!("Indices above 100: {:?}", indices);
 }
 ```
 
-### Privacy Amplification by Subsampling
+## Privacy Amplification by Subsampling
 
-When a DP mechanism is applied to a random subsample of data, privacy guarantees are amplified. This is crucial for DP-SGD in machine learning and large-scale analytics.
+When you apply a DP mechanism to a random subsample of your data, privacy guarantees are amplified. This is crucial for:
+
+- **DP-SGD**: Mini-batch training in machine learning
+- **Large-scale analytics**: Analyzing random samples
+- **Streaming**: Processing subsets of data streams
+
+### Key Insight
+
+If you sample each record with probability q = 1%, a mechanism with ε = 1.0 achieves effective privacy of ε ≈ 0.01!
+
+### Computing Amplified Privacy
 
 ```rust
 use differential_privacy::mechanisms::{
-    amplify_epsilon_poisson, compute_base_epsilon, SubsampledMechanism
+    amplify_epsilon_poisson,
+    amplify_epsilon_uniform,
+    amplify_epsilon_delta_poisson,
+    compute_base_epsilon,
+    SubsampledMechanism,
 };
 
 fn main() {
-    // Compute amplified privacy for Poisson subsampling
-    // Base mechanism: ε=1.0, sampling probability: 1%
-    let amplified_eps = amplify_epsilon_poisson(1.0, 0.01)
-        .expect("Valid parameters");
-    println!("Base ε: 1.0, Amplified ε: {:.4}", amplified_eps);  // ~0.01
+    // Poisson subsampling: each record included with probability q
+    let base_epsilon = 1.0;
+    let sampling_rate = 0.01;  // 1%
 
-    // Compute what base epsilon is needed for a target amplified epsilon
-    let base_eps = compute_base_epsilon(0.1, 0.01).expect("Valid parameters");
-    println!("To achieve ε=0.1 with q=0.01, need base ε: {:.2}", base_eps);
+    let amplified = amplify_epsilon_poisson(base_epsilon, sampling_rate)
+        .expect("Valid parameters");
+    println!("Base ε: {}, Amplified ε: {:.4}", base_epsilon, amplified);
+    // Output: Base ε: 1, Amplified ε: 0.0101
+
+    // Uniform subsampling: sample k records from n total
+    let amplified_uniform = amplify_epsilon_uniform(1.0, 100, 10000)
+        .expect("Valid parameters");
+    println!("Uniform (100/10000): Amplified ε: {:.4}", amplified_uniform);
+
+    // For (ε, δ)-DP mechanisms
+    let (amp_eps, amp_delta) = amplify_epsilon_delta_poisson(1.0, 1e-5, 0.01)
+        .expect("Valid parameters");
+    println!("Amplified: ε = {:.4}, δ = {:.2e}", amp_eps, amp_delta);
+
+    // Compute base epsilon needed for target amplified epsilon
+    let target_eps = 0.1;
+    let base_needed = compute_base_epsilon(target_eps, 0.01)
+        .expect("Valid parameters");
+    println!("To achieve ε = {} with q = 1%, need base ε = {:.2}", target_eps, base_needed);
 
     // Use SubsampledMechanism for convenient configuration
     let mech = SubsampledMechanism::new_poisson(2.0, 1e-5, 0.01)
@@ -206,184 +369,129 @@ fn main() {
 }
 ```
 
-Apply subsampled mechanisms to data:
+### Applying Subsampled Mechanisms
 
 ```rust
-use differential_privacy::mechanisms::{subsampled_laplace_sum, uniform_subsample};
+use differential_privacy::mechanisms::{
+    subsampled_laplace_sum,
+    subsampled_laplace_mean,
+    uniform_subsample,
+    poisson_subsample,
+};
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 use ndarray::Array1;
 
 fn main() {
     let mut accountant = PrivacyAccountant::new();
 
-    // Create a dataset
-    let data = Array1::from_vec((0..10000).map(|x| x as f64 % 100.0).collect());
+    // Create a large dataset
+    let data: Array1<f64> = Array1::from_vec(
+        (0..100_000).map(|i| (i % 1000) as f64).collect()
+    );
 
-    // Compute a subsampled sum with privacy amplification
+    // Subsampled sum: automatically subsamples and adds noise
     let noisy_sum = subsampled_laplace_sum(
         data.view(),
-        100.0,  // sensitivity
-        2.0,    // base epsilon (larger = less noise)
-        0.01,   // sampling probability (1%)
+        1000.0,  // sensitivity (max value)
+        2.0,     // base epsilon (can be larger due to amplification)
+        0.01,    // sampling probability (1%)
         &mut accountant
     ).expect("Valid parameters");
 
     let (recorded_eps, _) = accountant.compute_basic_composition();
     println!("Noisy sum: {:.2}", noisy_sum);
-    println!("Privacy cost (amplified): {:.4}", recorded_eps);  // Much less than 2.0!
+    println!("Privacy cost (amplified): {:.4}", recorded_eps);
+    // recorded_eps is much smaller than 2.0!
 
-    // Or manually subsample and apply your own mechanism
-    let (sample, indices) = uniform_subsample(data.view(), 100).expect("Valid size");
-    println!("Sampled {} elements at indices: {:?}...", sample.len(), &indices[..5]);
+    // Subsampled mean
+    let mut accountant2 = PrivacyAccountant::new();
+    let noisy_mean = subsampled_laplace_mean(
+        data.view(),
+        0.0,     // lower bound
+        1000.0,  // upper bound
+        1.0,     // base epsilon
+        0.1,     // 10% sampling
+        &mut accountant2
+    ).expect("Valid parameters");
+    println!("Noisy mean: {:.2}", noisy_mean);
+
+    // Manual subsampling for custom mechanisms
+    let (sample, indices) = uniform_subsample(data.view(), 1000)
+        .expect("Valid size");
+    println!("Sampled {} elements", sample.len());
+
+    // Or Poisson subsampling
+    let poisson_sample = poisson_subsample(data.view(), 0.01);
+    println!("Poisson sample size: {} (expected ~1000)", poisson_sample.len());
 }
 ```
 
-### Advanced Privacy Composition
+## Private Aggregations
 
-The library supports multiple composition methods that provide tighter privacy bounds when running multiple queries:
+The library provides ready-to-use differentially private aggregation functions.
 
-```rust
-use differential_privacy::privacy_accounting::{PrivacyAccountant, CompositionMethod};
-
-fn main() {
-    let mut accountant = PrivacyAccountant::new();
-
-    // Run 100 queries with ε=0.1 each
-    for _ in 0..100 {
-        accountant.update(0.1, 0.0);
-    }
-
-    // Compare composition methods
-    let (basic_eps, _) = accountant.get_privacy_loss(CompositionMethod::Basic);
-    let (advanced_eps, _) = accountant.get_privacy_loss(CompositionMethod::Advanced);
-    let (optimal_eps, _) = accountant.get_privacy_loss(CompositionMethod::OptimalAdvanced);
-
-    println!("Basic composition:    ε = {:.2}", basic_eps);    // ε = 10.00
-    println!("Advanced composition: ε = {:.2}", advanced_eps);  // ε ≈ 5.85
-    println!("Optimal composition:  ε = {:.2}", optimal_eps);   // ε ≈ 5.50
-
-    // Get a full comparison summary
-    let summary = accountant.composition_summary(1e-5);
-    println!("{}", summary);
-}
-```
-
-### Budget Management
+### Private Sum and Mean
 
 ```rust
-use differential_privacy::privacy_accounting::{PrivacyAccountant, CompositionMethod};
-
-fn main() {
-    // Create an accountant with a privacy budget
-    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
-
-    // Run queries and check budget
-    accountant.update(0.3, 1e-6);
-    accountant.update(0.3, 1e-6);
-
-    // Check remaining budget
-    let (remaining_eps, remaining_delta) = accountant.get_remaining_budget(CompositionMethod::Basic);
-    println!("Remaining: ε = {:?}, δ = {:?}", remaining_eps, remaining_delta);
-
-    // Check if budget is exceeded
-    if accountant.is_budget_exceeded(CompositionMethod::Basic) {
-        println!("Warning: Privacy budget exceeded!");
-    }
-}
-```
-
-### Automatic Budget Enforcement
-
-Use `try_update` to automatically check budget before recording queries:
-
-```rust
-use differential_privacy::privacy_accounting::PrivacyAccountant;
-
-fn main() {
-    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
-
-    // try_update checks budget before recording
-    match accountant.try_update(0.5, 1e-6) {
-        Ok(()) => println!("Query recorded successfully"),
-        Err(e) => println!("Budget exceeded: {}", e),
-    }
-
-    // Check if we can afford a query before running
-    if accountant.can_afford(0.3, 0.0).is_ok() {
-        accountant.update(0.3, 0.0);
-    }
-}
-```
-
-### Budget-Enforcing Mechanisms
-
-Use the `BudgetedAccountant` for automatic enforcement with all mechanisms:
-
-```rust
-use differential_privacy::mechanisms::BudgetedAccountant;
-
-fn main() {
-    let mut accountant = BudgetedAccountant::new(1.0, 1e-5);
-
-    // All mechanism calls automatically check budget
-    match accountant.laplace(100.0, 1.0, 0.3) {
-        Ok(noisy_value) => println!("Result: {}", noisy_value),
-        Err(e) => println!("Failed: {}", e),
-    }
-
-    // Check remaining budget
-    let (remaining_eps, remaining_delta) = accountant.remaining_budget();
-    println!("Remaining: ε = {:?}, δ = {:?}", remaining_eps, remaining_delta);
-
-    // Queries that would exceed budget are rejected
-    let result = accountant.laplace(100.0, 1.0, 0.8); // Would exceed budget
-    assert!(result.is_err());
-}
-```
-
-Or use individual budgeted mechanism functions:
-
-```rust
-use differential_privacy::mechanisms::laplace_mechanism_budgeted;
-use differential_privacy::privacy_accounting::PrivacyAccountant;
-
-fn main() {
-    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
-
-    // Automatically checks and enforces budget
-    match laplace_mechanism_budgeted(100.0, 1.0, 0.5, &mut accountant) {
-        Ok(noisy_value) => println!("Result: {}", noisy_value),
-        Err(e) => println!("Budget exceeded: {}", e),
-    }
-}
-```
-
-### Private Aggregations
-
-The library provides differentially private versions of common statistical aggregations:
-
-```rust
-use differential_privacy::aggregations::{private_sum, private_mean, private_count};
+use differential_privacy::aggregations::{private_sum, private_mean};
 use differential_privacy::privacy_accounting::PrivacyAccountant;
 use ndarray::array;
 
 fn main() {
     let mut accountant = PrivacyAccountant::new();
-    let data = array![10.0, 20.0, 30.0, 40.0, 50.0];
 
-    // Private sum with bounded values
-    let noisy_sum = private_sum(data.view(), 0.0, 100.0, 0.5, &mut accountant)
-        .expect("Invalid parameters");
-    println!("Private sum: {}", noisy_sum);
+    // Salaries (bounded between 30k and 200k)
+    let salaries = array![75000.0, 120000.0, 85000.0, 95000.0, 150000.0];
+
+    // Private sum
+    let noisy_sum = private_sum(
+        salaries.view(),
+        30000.0,   // lower bound
+        200000.0,  // upper bound
+        0.5,       // epsilon
+        &mut accountant
+    ).expect("Invalid parameters");
+
+    println!("Noisy total salaries: ${:.2}", noisy_sum);
 
     // Private mean
-    let noisy_mean = private_mean(data.view(), 0.0, 100.0, 0.5, &mut accountant)
-        .expect("Invalid parameters");
-    println!("Private mean: {}", noisy_mean);
+    let noisy_mean = private_mean(
+        salaries.view(),
+        30000.0,
+        200000.0,
+        0.5,
+        &mut accountant
+    ).expect("Invalid parameters");
 
-    // Private count with predicate
-    let count = private_count(data.view(), |&x| x > 25.0, 0.5, &mut accountant);
-    println!("Private count (x > 25): {}", count);
+    println!("Noisy average salary: ${:.2}", noisy_mean);
+}
+```
+
+### Private Count
+
+```rust
+use differential_privacy::aggregations::{private_count, private_count_all};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+use ndarray::array;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    let ages = array![25.0, 35.0, 42.0, 28.0, 55.0, 31.0, 47.0, 23.0];
+
+    // Count people over 30
+    let count_over_30 = private_count(
+        ages.view(),
+        |&age| age > 30.0,  // predicate
+        0.5,                // epsilon
+        &mut accountant
+    );
+
+    println!("People over 30: {:.1}", count_over_30);
+
+    // Total count
+    let total = private_count_all(ages.view(), 0.5, &mut accountant);
+    println!("Total people: {:.1}", total);
 }
 ```
 
@@ -396,21 +504,24 @@ use ndarray::array;
 
 fn main() {
     let mut accountant = PrivacyAccountant::new();
-    let ages = array![22.0, 35.0, 45.0, 28.0, 52.0, 38.0, 25.0, 60.0];
-    let bins = vec![0.0, 30.0, 40.0, 50.0, 100.0];  // Age groups
 
-    let noisy_histogram = private_histogram(ages.view(), &bins, 0.5, &mut accountant)
+    let ages = array![22.0, 35.0, 45.0, 28.0, 52.0, 38.0, 25.0, 60.0, 33.0, 41.0];
+
+    // Age groups: 0-29, 30-39, 40-49, 50+
+    let bins = vec![0.0, 30.0, 40.0, 50.0, 100.0];
+
+    let histogram = private_histogram(ages.view(), &bins, 0.5, &mut accountant)
         .expect("Invalid parameters");
 
-    println!("Age distribution:");
-    println!("  0-29:   {:.1}", noisy_histogram[0]);
-    println!("  30-39:  {:.1}", noisy_histogram[1]);
-    println!("  40-49:  {:.1}", noisy_histogram[2]);
-    println!("  50-99:  {:.1}", noisy_histogram[3]);
+    println!("Age Distribution:");
+    println!("  18-29: {:.1}", histogram[0]);
+    println!("  30-39: {:.1}", histogram[1]);
+    println!("  40-49: {:.1}", histogram[2]);
+    println!("  50+:   {:.1}", histogram[3]);
 }
 ```
 
-### Vector Noise Operations
+### Vector Noise
 
 ```rust
 use differential_privacy::aggregations::{add_laplace_noise_vector, add_gaussian_noise_vector};
@@ -419,16 +530,179 @@ use ndarray::array;
 
 fn main() {
     let mut accountant = PrivacyAccountant::new();
-    let values = array![100.0, 200.0, 300.0];
+
+    let features = array![100.0, 200.0, 150.0, 175.0, 125.0];
 
     // Add Laplace noise to entire vector
-    let noisy = add_laplace_noise_vector(values.view(), 1.0, 0.5, &mut accountant);
-    println!("Noisy vector (Laplace): {:?}", noisy);
+    let noisy_laplace = add_laplace_noise_vector(
+        features.view(),
+        10.0,  // sensitivity per element
+        1.0,   // epsilon
+        &mut accountant
+    );
 
-    // Add Gaussian noise to entire vector
-    let noisy = add_gaussian_noise_vector(values.view(), 1.0, 0.5, 1e-5, &mut accountant)
-        .expect("Invalid parameters");
-    println!("Noisy vector (Gaussian): {:?}", noisy);
+    println!("Original: {:?}", features);
+    println!("Noisy (Laplace): {:?}", noisy_laplace);
+
+    // Add Gaussian noise
+    let noisy_gaussian = add_gaussian_noise_vector(
+        features.view(),
+        10.0,   // sensitivity
+        1.0,    // epsilon
+        1e-5,   // delta
+        &mut accountant
+    ).expect("Invalid parameters");
+
+    println!("Noisy (Gaussian): {:?}", noisy_gaussian);
+}
+```
+
+## Privacy Accounting
+
+Track cumulative privacy loss across multiple queries using different composition methods.
+
+### Composition Methods
+
+```rust
+use differential_privacy::privacy_accounting::{PrivacyAccountant, CompositionMethod};
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    // Simulate 100 queries with ε=0.1 each
+    for _ in 0..100 {
+        accountant.update(0.1, 0.0);
+    }
+
+    // Compare composition methods
+    let (basic_eps, _) = accountant.get_privacy_loss(CompositionMethod::Basic);
+    let (advanced_eps, _) = accountant.get_privacy_loss(CompositionMethod::Advanced);
+    let (optimal_eps, _) = accountant.get_privacy_loss(CompositionMethod::OptimalAdvanced);
+
+    println!("100 queries with ε=0.1 each:");
+    println!("  Basic composition:    ε = {:.2}", basic_eps);     // 10.00
+    println!("  Advanced composition: ε = {:.2}", advanced_eps);  // ~5.85
+    println!("  Optimal composition:  ε = {:.2}", optimal_eps);   // ~5.50
+
+    // Full summary
+    let summary = accountant.composition_summary(1e-5);
+    println!("\n{}", summary);
+}
+```
+
+### RDP Composition
+
+Rényi Differential Privacy provides even tighter bounds for Gaussian mechanisms:
+
+```rust
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    // Simulate 50 Gaussian mechanism queries
+    for _ in 0..50 {
+        accountant.update(0.5, 1e-6);
+    }
+
+    // RDP composition with optimal order selection
+    let (rdp_eps, rdp_delta) = accountant.get_privacy_loss_rdp_optimal(1e-5);
+    let (basic_eps, _) = accountant.compute_basic_composition();
+
+    println!("50 Gaussian queries:");
+    println!("  Basic:  ε = {:.2}", basic_eps);
+    println!("  RDP:    ε = {:.2} (at δ = {:.0e})", rdp_eps, rdp_delta);
+}
+```
+
+## Budget Management
+
+Set and enforce privacy budgets to prevent overspending.
+
+### Setting Budgets
+
+```rust
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+
+fn main() {
+    // Create accountant with budget: ε ≤ 1.0, δ ≤ 10⁻⁵
+    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+    // Record queries
+    accountant.update(0.3, 1e-6);
+    accountant.update(0.3, 1e-6);
+
+    // Check status
+    println!("Budget: ε = 1.0, δ = 1e-5");
+    println!("Spent:  ε = 0.6, δ = 2e-6");
+
+    let (remaining_eps, remaining_delta) = accountant.get_remaining_budget(
+        differential_privacy::privacy_accounting::CompositionMethod::Basic
+    );
+    println!("Remaining: ε = {:?}, δ = {:?}", remaining_eps, remaining_delta);
+}
+```
+
+### Automatic Budget Enforcement
+
+```rust
+use differential_privacy::privacy_accounting::{PrivacyAccountant, PrivacyBudgetError};
+
+fn main() {
+    let mut accountant = PrivacyAccountant::with_budget(1.0, 1e-5);
+
+    // try_update checks budget before recording
+    match accountant.try_update(0.6, 1e-6) {
+        Ok(()) => println!("Query 1 recorded"),
+        Err(e) => println!("Query 1 failed: {}", e),
+    }
+
+    match accountant.try_update(0.6, 1e-6) {
+        Ok(()) => println!("Query 2 recorded"),
+        Err(PrivacyBudgetError::EpsilonBudgetExceeded { requested, available, .. }) => {
+            println!("Query 2 rejected: requested ε={:.2}, only {:.2} available",
+                     requested, available);
+        }
+        Err(e) => println!("Query 2 failed: {}", e),
+    }
+
+    // Check affordability before running expensive computation
+    if accountant.can_afford(0.2, 0.0).is_ok() {
+        println!("Can afford one more query with ε=0.2");
+    }
+}
+```
+
+### Budget-Enforcing Mechanisms
+
+Use the `BudgetedAccountant` wrapper for automatic enforcement:
+
+```rust
+use differential_privacy::mechanisms::BudgetedAccountant;
+
+fn main() {
+    let mut accountant = BudgetedAccountant::new(1.0, 1e-5);
+
+    // All mechanism calls automatically check budget
+    match accountant.laplace(100.0, 1.0, 0.3) {
+        Ok(noisy_value) => println!("Query 1: {:.2}", noisy_value),
+        Err(e) => println!("Query 1 failed: {}", e),
+    }
+
+    match accountant.gaussian(100.0, 1.0, 0.5, 1e-6) {
+        Ok(noisy_value) => println!("Query 2: {:.2}", noisy_value),
+        Err(e) => println!("Query 2 failed: {}", e),
+    }
+
+    // Check remaining budget
+    let (remaining_eps, remaining_delta) = accountant.remaining_budget();
+    println!("Remaining: ε = {:?}, δ = {:?}", remaining_eps, remaining_delta);
+
+    // This will fail if it exceeds budget
+    match accountant.laplace(100.0, 1.0, 0.5) {
+        Ok(_) => println!("Query 3 succeeded"),
+        Err(e) => println!("Query 3 rejected: {}", e),
+    }
 }
 ```
 
@@ -436,52 +710,47 @@ fn main() {
 
 ### Mechanisms
 
-| Mechanism | Privacy Guarantee | Use Case |
-|-----------|-------------------|----------|
-| `laplace_mechanism` | ε-DP | Adding noise to numeric queries |
-| `gaussian_mechanism` | (ε, δ)-DP | Adding noise when δ > 0 is acceptable |
-| `exponential_mechanism` | ε-DP | Selecting from discrete candidates |
-| `report_noisy_max` | ε-DP | Finding the argmax of counts |
-| `SparseVectorTechnique` | ε-DP | Many threshold queries with fixed budget |
-| `NumericSparseVector` | ε-DP | SVT with noisy output values |
+| Function | Privacy | Description |
+|----------|---------|-------------|
+| `laplace_mechanism` | ε-DP | Laplace noise for numeric queries |
+| `gaussian_mechanism` | (ε,δ)-DP | Gaussian noise for numeric queries |
+| `exponential_mechanism` | ε-DP | Private selection from candidates |
+| `report_noisy_max` | ε-DP | Private argmax with noisy count |
+| `report_noisy_argmax` | ε-DP | Private argmax (index only) |
 
 ### Sparse Vector Technique
 
-| Function/Type | Description |
+| Type/Function | Description |
 |---------------|-------------|
-| `SparseVectorTechnique` | Basic SVT returning Above/Below for each query |
-| `NumericSparseVector` | SVT that also outputs noisy values for above-threshold |
-| `sparse_vector_find_first` | Find first query exceeding threshold |
-| `sparse_vector_find_all` | Find all queries exceeding threshold (up to max) |
-| `ThresholdResult` | Enum: `Above` or `Below` |
-| `NumericThresholdResult` | Enum: `Above(f64)` or `Below` |
+| `SparseVectorTechnique` | Streaming threshold queries (Above/Below) |
+| `NumericSparseVector` | Threshold queries with noisy output values |
+| `sparse_vector_find_first` | Find first value above threshold |
+| `sparse_vector_find_all` | Find all values above threshold (up to max) |
 
-### Privacy Amplification by Subsampling
-
-| Function/Type | Description |
-|---------------|-------------|
-| `amplify_epsilon_poisson` | Compute amplified ε for Poisson subsampling |
-| `amplify_epsilon_uniform` | Compute amplified ε for uniform subsampling |
-| `amplify_epsilon_delta_poisson` | Compute amplified (ε, δ) for approximate DP |
-| `compute_base_epsilon` | Compute base ε needed for target amplified ε |
-| `poisson_subsample` | Sample data with Poisson subsampling |
-| `poisson_subsample_indices` | Get indices of Poisson-sampled elements |
-| `uniform_subsample` | Sample fixed-size subset without replacement |
-| `SubsampledMechanism` | Configuration for subsampled mechanism |
-| `subsampled_laplace_sum` | Laplace sum with privacy amplification |
-| `subsampled_laplace_mean` | Laplace mean with privacy amplification |
-| `subsampling_noise_reduction` | Estimate noise reduction factor |
-
-### Aggregation Functions
+### Privacy Amplification
 
 | Function | Description |
 |----------|-------------|
-| `private_sum` | Sum with Laplace noise, bounded input |
+| `amplify_epsilon_poisson` | Amplified ε for Poisson sampling |
+| `amplify_epsilon_uniform` | Amplified ε for uniform sampling |
+| `amplify_epsilon_delta_poisson` | Amplified (ε,δ) for approximate DP |
+| `compute_base_epsilon` | Base ε needed for target amplified ε |
+| `SubsampledMechanism` | Configuration helper |
+| `poisson_subsample` | Sample with probability q |
+| `uniform_subsample` | Sample k from n without replacement |
+| `subsampled_laplace_sum` | Subsampled sum with noise |
+| `subsampled_laplace_mean` | Subsampled mean with noise |
+
+### Aggregations
+
+| Function | Description |
+|----------|-------------|
+| `private_sum` | Sum with Laplace noise |
 | `private_mean` | Mean with noise on sum and count |
-| `private_count` | Count with Laplace noise |
-| `private_count_all` | Total count (no predicate) |
+| `private_count` | Count matching predicate |
+| `private_count_all` | Total count |
 | `private_variance` | Variance with bounded sensitivity |
-| `private_histogram` | Per-bin Laplace noise |
+| `private_histogram` | Histogram with per-bin noise |
 | `add_laplace_noise_vector` | Laplace noise on arrays |
 | `add_gaussian_noise_vector` | Gaussian noise on arrays |
 
@@ -489,70 +758,88 @@ fn main() {
 
 | Function | Description |
 |----------|-------------|
-| `sensitivity_count` | Count query sensitivity (always 1.0) |
-| `sensitivity_sum(lower, upper)` | Sum sensitivity for bounded values |
-| `sensitivity_mean(lower, upper, n)` | Mean sensitivity |
-| `sensitivity_l2(dimension)` | L2 sensitivity for unit vectors |
+| `sensitivity_count` | Always 1.0 |
+| `sensitivity_sum(lo, hi)` | hi - lo |
+| `sensitivity_mean(lo, hi, n)` | (hi - lo) / n |
+| `sensitivity_l2(dim)` | √dim for unit vectors |
 
-### Composition Methods
-
-| Method | Description | When to Use |
-|--------|-------------|-------------|
-| `Basic` | Simple sum: ε_total = Σε_i | Few queries, loose bounds acceptable |
-| `Advanced` | Dwork-Rothblum-Vadhan theorem | Many queries with similar ε values |
-| `OptimalAdvanced` | Numerically optimized | When tightest bounds needed |
-| `RDP` | Rényi Differential Privacy | Gaussian mechanisms, ML training |
-
-### Privacy Accountant Methods
+### Privacy Accountant
 
 ```rust
-// Create accountants
-PrivacyAccountant::new()                          // No budget limits
-PrivacyAccountant::with_budget(epsilon, delta)    // With budget limits
+// Creation
+PrivacyAccountant::new()                          // No budget
+PrivacyAccountant::with_budget(epsilon, delta)    // With budget
 
-// Record queries
-accountant.update(epsilon, delta)                 // Record without checking budget
-accountant.try_update(epsilon, delta)             // Check budget, then record
-accountant.try_update_with_method(eps, delta, method)  // With specific composition
+// Recording queries
+accountant.update(epsilon, delta)                 // Record without checking
+accountant.try_update(epsilon, delta)             // Check budget first
+accountant.try_update_with_method(eps, delta, method)
 
-// Check affordability
-accountant.can_afford(epsilon, delta)             // Check if query fits in budget
-accountant.can_afford_with_method(eps, delta, method)  // With specific composition
+// Budget checking
+accountant.can_afford(epsilon, delta)
+accountant.can_afford_with_method(eps, delta, method)
 
-// Get privacy loss
-accountant.compute_basic_composition()            // Basic composition
-accountant.get_privacy_loss(method)               // Any composition method
-accountant.get_privacy_loss_advanced(delta_prime) // Advanced with custom δ'
-accountant.get_privacy_loss_optimal(target_delta) // Optimal composition
-accountant.get_privacy_loss_rdp_optimal(delta)    // RDP composition
+// Privacy loss
+accountant.compute_basic_composition()
+accountant.get_privacy_loss(method)
+accountant.get_privacy_loss_advanced(delta_prime)
+accountant.get_privacy_loss_optimal(target_delta)
+accountant.get_privacy_loss_rdp_optimal(delta)
 
 // Budget management
+accountant.has_budget()
+accountant.get_budget()
+accountant.set_budget(Some(eps), Some(delta))
 accountant.is_budget_exceeded(method)
 accountant.get_remaining_budget(method)
-accountant.has_budget()                           // Check if budget is set
-accountant.get_budget()                           // Get budget limits
-accountant.set_budget(Some(eps), Some(delta))     // Set new budget limits
 accountant.num_queries()
 accountant.reset()
 ```
 
-### Budget-Enforcing Mechanisms
+## Mathematical Background
 
-| Function | Description |
-|----------|-------------|
-| `laplace_mechanism_budgeted` | Laplace with automatic budget check |
-| `gaussian_mechanism_budgeted` | Gaussian with automatic budget check |
-| `exponential_mechanism_budgeted` | Exponential with automatic budget check |
-| `report_noisy_max_budgeted` | Report Noisy Max with automatic budget check |
-| `BudgetedAccountant` | Wrapper with all mechanisms built-in |
+### Laplace Mechanism
+- **Noise**: Laplace(0, Δ/ε)
+- **Variance**: 2(Δ/ε)²
+- **Privacy**: ε-differential privacy
 
-## Running Tests
+### Gaussian Mechanism
+- **Noise**: N(0, σ²) where σ = Δ√(2ln(1.25/δ))/ε
+- **Privacy**: (ε, δ)-differential privacy
+
+### Subsampling Amplification
+- **Formula**: ε' = ln(1 + q(e^ε - 1))
+- **Approximation**: ε' ≈ qε for small ε
+- **Intuition**: If data is sampled with prob q, adversary's information is reduced
+
+### Composition
+- **Basic**: ε_total = Σε_i (loose)
+- **Advanced**: ε_total = √(2k·ln(1/δ'))·ε + k·ε·(e^ε - 1) (tighter)
+- **RDP**: Uses Rényi divergence for Gaussian mechanisms
+
+## Testing
+
+Run the test suite:
 
 ```bash
+# All tests
 cargo test
+
+# With output
+cargo test -- --nocapture
+
+# Specific module
+cargo test mechanisms::laplace
+
+# Documentation tests
+cargo test --doc
 ```
 
-## Running Examples
+Current test coverage: 123 unit tests + 26 doc-tests.
+
+## Examples
+
+Run the included examples:
 
 ```bash
 cargo run --example noise_addition
@@ -561,3 +848,10 @@ cargo run --example noise_addition
 ## License
 
 This project is licensed under the MIT License.
+
+## References
+
+- Dwork, C., & Roth, A. (2014). The Algorithmic Foundations of Differential Privacy.
+- Mironov, I. (2017). Rényi Differential Privacy.
+- Abadi, M., et al. (2016). Deep Learning with Differential Privacy.
+- Balle, B., et al. (2018). Privacy Amplification by Subsampling.
