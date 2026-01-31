@@ -12,6 +12,7 @@
 /// - **Exponential Mechanism**: Privately selects an item from candidates based on utility scores.
 /// - **Report Noisy Max**: Privately reports the index of the maximum value in a set of counts.
 /// - **Sparse Vector Technique**: Answer many threshold queries with fixed privacy budget.
+/// - **Privacy Amplification by Subsampling**: Stronger guarantees when using data subsamples.
 ///
 /// ## Budget-Enforcing Mechanisms
 ///
@@ -24,6 +25,7 @@ pub mod exponential;
 pub mod report_noisy_max;
 pub mod budgeted;
 pub mod sparse_vector;
+pub mod subsampling;
 
 /// Expose mechanism functions for external use.
 pub use laplace::laplace_mechanism;
@@ -49,4 +51,19 @@ pub use sparse_vector::{
     NumericThresholdResult,
     sparse_vector_find_first,
     sparse_vector_find_all,
+};
+
+/// Expose Privacy Amplification by Subsampling.
+pub use subsampling::{
+    amplify_epsilon_poisson,
+    amplify_epsilon_uniform,
+    amplify_epsilon_delta_poisson,
+    compute_base_epsilon,
+    poisson_subsample,
+    poisson_subsample_indices,
+    uniform_subsample,
+    SubsampledMechanism,
+    subsampled_laplace_sum,
+    subsampled_laplace_mean,
+    subsampling_noise_reduction,
 };

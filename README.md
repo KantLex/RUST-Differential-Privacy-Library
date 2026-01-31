@@ -11,6 +11,10 @@ A robust, performant, and easy-to-use toolkit for incorporating privacy-preservi
     * **Exponential Mechanism:** For privately selecting an item from a set of candidates based on utility scores.
     * **Report Noisy Max:** For privately releasing the index of the maximum value in a set of counts.
     * **Sparse Vector Technique:** Answer many threshold queries with a fixed privacy budget.
+* **Privacy Amplification by Subsampling:** Stronger guarantees when using data subsamples:
+    * **Poisson Subsampling:** Each record included independently with probability q
+    * **Uniform Subsampling:** Fixed-size random subset without replacement
+    * **Amplified Privacy:** Effective ε ≈ q × base_ε for small sampling rates
 * **Advanced Privacy Accounting:** Multiple composition methods for tighter privacy bounds:
     * **Basic Composition:** Simple additive composition (ε_total = Σε_i)
     * **Advanced Composition:** Tighter bounds using the Dwork-Rothblum-Vadhan theorem
@@ -172,6 +176,65 @@ fn main() {
     let above_indices = sparse_vector_find_all(&queries, 100.0, 1.0, 0.5, 3, &mut accountant2)
         .expect("Invalid parameters");
     println!("Queries above threshold at indices: {:?}", above_indices);
+}
+```
+
+### Privacy Amplification by Subsampling
+
+When a DP mechanism is applied to a random subsample of data, privacy guarantees are amplified. This is crucial for DP-SGD in machine learning and large-scale analytics.
+
+```rust
+use differential_privacy::mechanisms::{
+    amplify_epsilon_poisson, compute_base_epsilon, SubsampledMechanism
+};
+
+fn main() {
+    // Compute amplified privacy for Poisson subsampling
+    // Base mechanism: ε=1.0, sampling probability: 1%
+    let amplified_eps = amplify_epsilon_poisson(1.0, 0.01)
+        .expect("Valid parameters");
+    println!("Base ε: 1.0, Amplified ε: {:.4}", amplified_eps);  // ~0.01
+
+    // Compute what base epsilon is needed for a target amplified epsilon
+    let base_eps = compute_base_epsilon(0.1, 0.01).expect("Valid parameters");
+    println!("To achieve ε=0.1 with q=0.01, need base ε: {:.2}", base_eps);
+
+    // Use SubsampledMechanism for convenient configuration
+    let mech = SubsampledMechanism::new_poisson(2.0, 1e-5, 0.01)
+        .expect("Valid parameters");
+    println!("Amplification factor: {:.1}x", mech.amplification_factor());
+}
+```
+
+Apply subsampled mechanisms to data:
+
+```rust
+use differential_privacy::mechanisms::{subsampled_laplace_sum, uniform_subsample};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+use ndarray::Array1;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+
+    // Create a dataset
+    let data = Array1::from_vec((0..10000).map(|x| x as f64 % 100.0).collect());
+
+    // Compute a subsampled sum with privacy amplification
+    let noisy_sum = subsampled_laplace_sum(
+        data.view(),
+        100.0,  // sensitivity
+        2.0,    // base epsilon (larger = less noise)
+        0.01,   // sampling probability (1%)
+        &mut accountant
+    ).expect("Valid parameters");
+
+    let (recorded_eps, _) = accountant.compute_basic_composition();
+    println!("Noisy sum: {:.2}", noisy_sum);
+    println!("Privacy cost (amplified): {:.4}", recorded_eps);  // Much less than 2.0!
+
+    // Or manually subsample and apply your own mechanism
+    let (sample, indices) = uniform_subsample(data.view(), 100).expect("Valid size");
+    println!("Sampled {} elements at indices: {:?}...", sample.len(), &indices[..5]);
 }
 ```
 
@@ -392,6 +455,22 @@ fn main() {
 | `sparse_vector_find_all` | Find all queries exceeding threshold (up to max) |
 | `ThresholdResult` | Enum: `Above` or `Below` |
 | `NumericThresholdResult` | Enum: `Above(f64)` or `Below` |
+
+### Privacy Amplification by Subsampling
+
+| Function/Type | Description |
+|---------------|-------------|
+| `amplify_epsilon_poisson` | Compute amplified ε for Poisson subsampling |
+| `amplify_epsilon_uniform` | Compute amplified ε for uniform subsampling |
+| `amplify_epsilon_delta_poisson` | Compute amplified (ε, δ) for approximate DP |
+| `compute_base_epsilon` | Compute base ε needed for target amplified ε |
+| `poisson_subsample` | Sample data with Poisson subsampling |
+| `poisson_subsample_indices` | Get indices of Poisson-sampled elements |
+| `uniform_subsample` | Sample fixed-size subset without replacement |
+| `SubsampledMechanism` | Configuration for subsampled mechanism |
+| `subsampled_laplace_sum` | Laplace sum with privacy amplification |
+| `subsampled_laplace_mean` | Laplace mean with privacy amplification |
+| `subsampling_noise_reduction` | Estimate noise reduction factor |
 
 ### Aggregation Functions
 
