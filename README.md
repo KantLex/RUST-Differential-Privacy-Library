@@ -16,6 +16,12 @@ A robust, performant, and easy-to-use toolkit for incorporating privacy-preservi
     * **Optimal Composition:** Numerically optimized δ' allocation
     * **RDP Composition:** Rényi Differential Privacy for even tighter bounds
 * **Budget Management:** Track and enforce privacy budgets across multiple queries.
+* **Private Aggregations:** Built-in differentially private aggregation functions:
+    * **Private Sum/Mean/Count:** Compute statistics with Laplace noise
+    * **Private Variance:** Bounded variance estimation
+    * **Private Histogram:** Per-bin noise for histogram queries
+    * **Vector Noise:** Add Laplace/Gaussian noise to entire arrays
+    * **Sensitivity Calculators:** Utilities for computing query sensitivity
 * **Rust-based:** Benefits from Rust's performance, memory safety, and strong type system.
 * **Comprehensive Testing:** Includes unit tests and statistical validation for all mechanisms.
 
@@ -230,6 +236,80 @@ fn main() {
 }
 ```
 
+### Private Aggregations
+
+The library provides differentially private versions of common statistical aggregations:
+
+```rust
+use differential_privacy::aggregations::{private_sum, private_mean, private_count};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+use ndarray::array;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+    let data = array![10.0, 20.0, 30.0, 40.0, 50.0];
+
+    // Private sum with bounded values
+    let noisy_sum = private_sum(data.view(), 0.0, 100.0, 0.5, &mut accountant)
+        .expect("Invalid parameters");
+    println!("Private sum: {}", noisy_sum);
+
+    // Private mean
+    let noisy_mean = private_mean(data.view(), 0.0, 100.0, 0.5, &mut accountant)
+        .expect("Invalid parameters");
+    println!("Private mean: {}", noisy_mean);
+
+    // Private count with predicate
+    let count = private_count(data.view(), |&x| x > 25.0, 0.5, &mut accountant);
+    println!("Private count (x > 25): {}", count);
+}
+```
+
+### Private Histogram
+
+```rust
+use differential_privacy::aggregations::private_histogram;
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+use ndarray::array;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+    let ages = array![22.0, 35.0, 45.0, 28.0, 52.0, 38.0, 25.0, 60.0];
+    let bins = vec![0.0, 30.0, 40.0, 50.0, 100.0];  // Age groups
+
+    let noisy_histogram = private_histogram(ages.view(), &bins, 0.5, &mut accountant)
+        .expect("Invalid parameters");
+
+    println!("Age distribution:");
+    println!("  0-29:   {:.1}", noisy_histogram[0]);
+    println!("  30-39:  {:.1}", noisy_histogram[1]);
+    println!("  40-49:  {:.1}", noisy_histogram[2]);
+    println!("  50-99:  {:.1}", noisy_histogram[3]);
+}
+```
+
+### Vector Noise Operations
+
+```rust
+use differential_privacy::aggregations::{add_laplace_noise_vector, add_gaussian_noise_vector};
+use differential_privacy::privacy_accounting::PrivacyAccountant;
+use ndarray::array;
+
+fn main() {
+    let mut accountant = PrivacyAccountant::new();
+    let values = array![100.0, 200.0, 300.0];
+
+    // Add Laplace noise to entire vector
+    let noisy = add_laplace_noise_vector(values.view(), 1.0, 0.5, &mut accountant);
+    println!("Noisy vector (Laplace): {:?}", noisy);
+
+    // Add Gaussian noise to entire vector
+    let noisy = add_gaussian_noise_vector(values.view(), 1.0, 0.5, 1e-5, &mut accountant)
+        .expect("Invalid parameters");
+    println!("Noisy vector (Gaussian): {:?}", noisy);
+}
+```
+
 ## API Reference
 
 ### Mechanisms
@@ -240,6 +320,28 @@ fn main() {
 | `gaussian_mechanism` | (ε, δ)-DP | Adding noise when δ > 0 is acceptable |
 | `exponential_mechanism` | ε-DP | Selecting from discrete candidates |
 | `report_noisy_max` | ε-DP | Finding the argmax of counts |
+
+### Aggregation Functions
+
+| Function | Description |
+|----------|-------------|
+| `private_sum` | Sum with Laplace noise, bounded input |
+| `private_mean` | Mean with noise on sum and count |
+| `private_count` | Count with Laplace noise |
+| `private_count_all` | Total count (no predicate) |
+| `private_variance` | Variance with bounded sensitivity |
+| `private_histogram` | Per-bin Laplace noise |
+| `add_laplace_noise_vector` | Laplace noise on arrays |
+| `add_gaussian_noise_vector` | Gaussian noise on arrays |
+
+### Sensitivity Calculators
+
+| Function | Description |
+|----------|-------------|
+| `sensitivity_count` | Count query sensitivity (always 1.0) |
+| `sensitivity_sum(lower, upper)` | Sum sensitivity for bounded values |
+| `sensitivity_mean(lower, upper, n)` | Mean sensitivity |
+| `sensitivity_l2(dimension)` | L2 sensitivity for unit vectors |
 
 ### Composition Methods
 
